@@ -1,2 +1,2 @@
 # libx509pq
-A certificate parsing library for PostgreSQL
+X.509 certificate parsing library for PostgreSQL
