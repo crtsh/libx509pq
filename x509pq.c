@@ -880,6 +880,58 @@ Datum x509_subjectname(
 
 
 /******************************************************************************
+ * x509_name()                                                                *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_name);
+Datum x509_name(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	X509_NAME* t_x509Name = NULL;
+	bytea* t_bytea = NULL;
+	bytea* t_derName = NULL;
+	const unsigned char* t_pointer = NULL;
+	unsigned char* t_pointer2 = NULL;
+	int t_derName_size;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509)
+		goto label_error;
+
+	t_x509Name = PG_GETARG_BOOL(1) ? X509_get_subject_name(t_x509)
+					: X509_get_issuer_name(t_x509);
+	if (!t_x509Name)
+		goto label_error;
+
+	t_derName_size = i2d_X509_NAME(t_x509Name, NULL);
+	if (t_derName_size < 0)
+		goto label_error;
+
+	t_derName = palloc(VARHDRSZ + t_derName_size);
+	SET_VARSIZE(t_derName, VARHDRSZ + t_derName_size);
+
+	t_pointer2 = (unsigned char*)VARDATA(t_derName);
+	if (!(i2d_X509_NAME(t_x509Name, &t_pointer2)))
+		goto label_error;
+
+	X509_free(t_x509);
+
+	PG_RETURN_BYTEA_P(t_derName);
+
+label_error:
+	if (t_x509)
+		X509_free(t_x509);
+
+	PG_RETURN_NULL();
+}
+
+
+/******************************************************************************
  * x509_commonname()                                                          *
  ******************************************************************************/
 PG_FUNCTION_INFO_V1(x509_commonname);
