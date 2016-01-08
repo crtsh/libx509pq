@@ -20,6 +20,8 @@ DROP FUNCTION x509_signatureKeyAlgorithm(bytea);
 
 DROP FUNCTION x509_subjectName(bytea,integer);
 
+DROP FUNCTION x509_name(bytea,boolean);
+
 DROP FUNCTION x509_commonName(bytea);
 
 DROP FUNCTION x509_extKeyUsages(bytea);
