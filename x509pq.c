@@ -219,8 +219,10 @@ static int ASN1_GENERALIZEDTIME_parse(
 		if ((t_data[i] > '9') || (t_data[i] < '0'))
 			goto label_error;
 
-	v_time->tm_year = (t_data[0] - '0') * 1000 + (t_data[1] - '0') * 100
-			+ (t_data[2] - '0') * 10 + (t_data[3] - '0');
+	v_time->tm_year = (
+		((t_data[0] - '0') * 1000) + ((t_data[1] - '0') * 100)
+		+ ((t_data[2] - '0') * 10) + (t_data[3] - '0')
+	) - 1900;
 
 	v_time->tm_mon = (t_data[4] - '0') * 10 + (t_data[5] - '0');
 	if ((v_time->tm_mon > 12) || (v_time->tm_mon < 1))
@@ -278,7 +280,6 @@ static int ASN1_UTCTIME_parse(
 	v_time->tm_year = (t_data[0] - '0') * 10 + (t_data[1] - '0');
 	if (v_time->tm_year < 50)
 		v_time->tm_year += 100;
-	v_time->tm_year += 1900;
 
 	v_time->tm_mon = (t_data[2] - '0') * 10 + (t_data[3] - '0');
 	if ((v_time->tm_mon > 12) || (v_time->tm_mon < 1))
@@ -523,7 +524,6 @@ Datum x509_notafter(
 	if (!t_iResult)
 		PG_RETURN_NULL();
 
-	t_time.tm_year -= 1900;
 	t_timestamp = (timegm(&t_time) - 946684800) * USECS_PER_SEC;
 
 	PG_RETURN_TIMESTAMP(t_timestamp);
@@ -560,7 +560,6 @@ Datum x509_notbefore(
 	if (!t_iResult)
 		PG_RETURN_NULL();
 
-	t_time.tm_year -= 1900;
 	t_timestamp = (timegm(&t_time) - 946684800) * USECS_PER_SEC;
 
 	PG_RETURN_TIMESTAMP(t_timestamp);
