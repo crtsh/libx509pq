@@ -24,6 +24,8 @@ DROP FUNCTION x509_name(bytea,boolean);
 
 DROP FUNCTION x509_commonName(bytea);
 
+DROP FUNCTION x509_subjectKeyIdentifier(bytea);
+
 DROP FUNCTION x509_extKeyUsages(bytea);
 
 DROP FUNCTION x509_isEKUPermitted(bytea,text);

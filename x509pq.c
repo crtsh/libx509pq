@@ -993,6 +993,53 @@ Datum x509_commonname(
 }
 
 
+/******************************************************************************
+ * x509_subjectkeyidentifier()                                                *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_subjectkeyidentifier);
+Datum x509_subjectkeyidentifier(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	ASN1_OCTET_STRING* t_asn1OctetString;
+	bytea* t_bytea = NULL;
+	bytea* t_subjectKeyIdentifier = NULL;
+	unsigned char* t_pointer = NULL;
+	int t_size;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(
+		NULL, (const unsigned char**)&t_pointer,
+		VARSIZE(t_bytea) - VARHDRSZ
+	);
+	if (!t_x509)
+		PG_RETURN_NULL();
+
+	t_asn1OctetString = X509_get_ext_d2i(
+		t_x509, NID_subject_key_identifier, NULL, NULL
+	);
+	if (!t_asn1OctetString) {
+		X509_free(t_x509);
+		PG_RETURN_NULL();
+	}
+
+	t_size = ASN1_STRING_length(t_asn1OctetString);
+	t_subjectKeyIdentifier = palloc(VARHDRSZ + t_size);
+	t_pointer = (unsigned char*)t_subjectKeyIdentifier + VARHDRSZ;
+	memcpy(t_pointer, ASN1_STRING_data(t_asn1OctetString), t_size);
+	SET_VARSIZE(t_subjectKeyIdentifier, VARHDRSZ + t_size);
+
+	ASN1_OCTET_STRING_free(t_asn1OctetString);
+	X509_free(t_x509);
+
+	PG_RETURN_BYTEA_P(t_subjectKeyIdentifier);
+}
+
+
 typedef struct tExtKeyUsageCtx_st{
 	EXTENDED_KEY_USAGE* m_extKeyUsages;
 	int m_index;
