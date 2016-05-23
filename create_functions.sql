@@ -64,6 +64,9 @@ CREATE OR REPLACE FUNCTION x509_nameAttributes(bytea,text,boolean,boolean DEFAUL
 CREATE OR REPLACE FUNCTION x509_altNames(bytea,integer DEFAULT NULL,boolean DEFAULT TRUE,boolean DEFAULT TRUE) RETURNS SETOF text
 	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
 
+CREATE OR REPLACE FUNCTION x509_anyNamesWithNULs(bytea) RETURNS boolean
+	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION x509_cRLDistributionPoints(bytea) RETURNS SETOF text
 	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
 

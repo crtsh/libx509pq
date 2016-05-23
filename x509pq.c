@@ -2345,6 +2345,124 @@ Datum x509_verify(
 }
 
 
+/******************************************************************************
+ * x509_anynameswithnuls()                                                    *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_anynameswithnuls);
+Datum x509_anynameswithnuls(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	X509_NAME* t_name;
+	X509_NAME_ENTRY* t_nameEntry;
+	STACK_OF(GENERAL_NAME)* t_genNames;
+	const GENERAL_NAME* t_generalName;
+	bytea* t_bytea = NULL;
+	const unsigned char* t_pointer = NULL;
+	int l_indexNo;
+	bool t_bResult = FALSE;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509)
+		PG_RETURN_NULL();
+
+	t_name = X509_get_subject_name(t_x509);
+	if (t_name) {
+		for (l_indexNo = 0; l_indexNo < X509_NAME_entry_count(t_name);
+								l_indexNo++) {
+			char* t_utf8String = NULL;
+			t_nameEntry = X509_NAME_get_entry(t_name, l_indexNo);
+			int t_length = ASN1_STRING_to_UTF8(
+				(unsigned char**)&t_utf8String,
+				X509_NAME_ENTRY_get_data(t_nameEntry)
+			);
+			if (t_utf8String) {
+				if (t_length != strlen(t_utf8String))
+					t_bResult = TRUE;
+				OPENSSL_free(t_utf8String);
+			}
+		}
+	}
+
+	t_name = X509_get_issuer_name(t_x509);
+	if (t_name) {
+		for (l_indexNo = 0; l_indexNo < X509_NAME_entry_count(t_name);
+								l_indexNo++) {
+			char* t_utf8String = NULL;
+			t_nameEntry = X509_NAME_get_entry(t_name, l_indexNo);
+			int t_length = ASN1_STRING_to_UTF8(
+				(unsigned char**)&t_utf8String,
+				X509_NAME_ENTRY_get_data(t_nameEntry)
+			);
+			if (t_utf8String) {
+				if (t_length != strlen(t_utf8String))
+					t_bResult = TRUE;
+				OPENSSL_free(t_utf8String);
+			}
+		}
+	}
+
+	t_genNames = X509_get_ext_d2i(t_x509, NID_subject_alt_name, NULL, NULL);
+	if (t_genNames) {
+		for (l_indexNo = 0; l_indexNo < sk_GENERAL_NAME_num(t_genNames);
+								l_indexNo++) {
+			char* t_utf8String = NULL;
+			t_generalName = sk_GENERAL_NAME_value(
+				t_genNames, l_indexNo
+			);
+			if ((t_generalName->type == GEN_EMAIL)
+					|| (t_generalName->type == GEN_DNS)
+					|| (t_generalName->type == GEN_URI)) {
+				int t_length = ASN1_STRING_to_UTF8(
+					(unsigned char**)&t_utf8String,
+					t_generalName->d.ia5
+				);
+				if (t_utf8String) {
+					if (t_length != strlen(t_utf8String))
+						t_bResult = TRUE;
+					OPENSSL_free(t_utf8String);
+				}
+			}
+		}
+		GENERAL_NAMES_free(t_genNames);
+	}
+
+	t_genNames = X509_get_ext_d2i(t_x509, NID_issuer_alt_name, NULL, NULL);
+	if (t_genNames) {
+		for (l_indexNo = 0; l_indexNo < sk_GENERAL_NAME_num(t_genNames);
+								l_indexNo++) {
+			char* t_utf8String = NULL;
+			t_generalName = sk_GENERAL_NAME_value(
+				t_genNames, l_indexNo
+			);
+			if ((t_generalName->type == GEN_EMAIL)
+					|| (t_generalName->type == GEN_DNS)
+					|| (t_generalName->type == GEN_URI)) {
+				int t_length = ASN1_STRING_to_UTF8(
+					(unsigned char**)&t_utf8String,
+					t_generalName->d.ia5
+				);
+				if (t_utf8String) {
+					if (t_length != strlen(t_utf8String))
+						t_bResult = TRUE;
+					OPENSSL_free(t_utf8String);
+				}
+			}
+		}
+		GENERAL_NAMES_free(t_genNames);
+	}
+
+	X509_free(t_x509);
+
+	PG_RETURN_BOOL(t_bResult);
+}
+
+
 /* URL Encoding - characters to not encode:
  * 33 (!)
  * 39-42 ('()*)
