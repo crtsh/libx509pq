@@ -1709,24 +1709,47 @@ Datum x509_nameattributes(
 					&& (t_x509NameCtx->m_nid != NID_X509))
 				continue;
 
-			t_asn1String = X509_NAME_ENTRY_get_data(t_nameEntry);
-			(void)ASN1_STRING_to_UTF8(
-				(unsigned char**)&t_utf8String, t_asn1String
-			);
-			if (t_utf8String) {
-				text* t_text = palloc(
-					strlen(t_utf8String) + VARHDRSZ
+			text* t_text;
+			if (PG_GETARG_BOOL(3)) {
+				t_asn1String = X509_NAME_ENTRY_get_data(
+					t_nameEntry
 				);
-				SET_VARSIZE(
-					t_text, strlen(t_utf8String) + VARHDRSZ
+				(void)ASN1_STRING_to_UTF8(
+					(unsigned char**)&t_utf8String,
+					t_asn1String
 				);
-				memcpy((void*)VARDATA(t_text), t_utf8String,
-					strlen(t_utf8String));
-				OPENSSL_free(t_utf8String);
-				SRF_RETURN_NEXT(
-					t_funcCtx, PointerGetDatum(t_text)
-				);
+				if (t_utf8String) {
+					t_text = palloc(
+						strlen(t_utf8String) + VARHDRSZ
+					);
+					SET_VARSIZE(
+						t_text,
+						strlen(t_utf8String) + VARHDRSZ
+					);
+					memcpy((void*)VARDATA(t_text),
+						t_utf8String,
+						strlen(t_utf8String));
+					OPENSSL_free(t_utf8String);
+				}
 			}
+			else {
+				char t_buffer[80];
+				OBJ_obj2txt(
+					t_buffer, sizeof t_buffer,
+					X509_NAME_ENTRY_get_object(t_nameEntry),
+					1
+				);
+				t_text = palloc(strlen(t_buffer) + VARHDRSZ);
+				SET_VARSIZE(
+					t_text, strlen(t_buffer) + VARHDRSZ
+				);
+				memcpy((void*)VARDATA(t_text), t_buffer,
+					strlen(t_buffer));
+			}
+
+			SRF_RETURN_NEXT(
+				t_funcCtx, PointerGetDatum(t_text)
+			);
 		}
 	}
 
@@ -1850,7 +1873,10 @@ Datum x509_altnames(
 				continue;
 
 			/* IA5String types */
-			if ((t_generalName->type == GEN_EMAIL)
+			if (!PG_GETARG_BOOL(3))
+				/* We're only interested in OtherName OIDs */
+				;
+			else if ((t_generalName->type == GEN_EMAIL)
 					|| (t_generalName->type == GEN_DNS)
 					|| (t_generalName->type == GEN_URI))
 				(void)ASN1_STRING_to_UTF8(
@@ -1923,8 +1949,9 @@ Datum x509_altnames(
 				);
 			}
 
+			text* t_text = NULL;
 			if (t_utf8String) {
-				text* t_text = palloc(
+				t_text = palloc(
 					strlen(t_utf8String) + VARHDRSZ
 				);
 				SET_VARSIZE(
@@ -1933,10 +1960,30 @@ Datum x509_altnames(
 				memcpy((void*)VARDATA(t_text), t_utf8String,
 					strlen(t_utf8String));
 				OPENSSL_free(t_utf8String);
+			}
+			else if ((!PG_GETARG_BOOL(3)) && (t_generalName->type
+							== GEN_OTHERNAME)) {
+				ASN1_OBJECT* t_oid;
+				char t_buffer[80];
+				(void)GENERAL_NAME_get0_otherName(
+					(GENERAL_NAME*)t_generalName, &t_oid,
+					NULL
+				);
+				OBJ_obj2txt(
+					t_buffer, sizeof t_buffer, t_oid, 1
+				);
+				t_text = palloc(strlen(t_buffer) + VARHDRSZ);
+				SET_VARSIZE(
+					t_text, strlen(t_buffer) + VARHDRSZ
+				);
+				memcpy((void*)VARDATA(t_text), t_buffer,
+					strlen(t_buffer));
+			}
+
+			if (t_text)
 				SRF_RETURN_NEXT(
 					t_funcCtx, PointerGetDatum(t_text)
 				);
-			}
 		}
 		GENERAL_NAMES_free(t_altNamesCtx->m_genNames);
 	}

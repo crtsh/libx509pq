@@ -58,10 +58,10 @@ CREATE OR REPLACE FUNCTION x509_canIssueCerts(bytea) RETURNS boolean
 CREATE OR REPLACE FUNCTION x509_getPathLenConstraint(bytea) RETURNS integer
 	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
 
-CREATE OR REPLACE FUNCTION x509_nameAttributes(bytea,text,boolean) RETURNS SETOF text
+CREATE OR REPLACE FUNCTION x509_nameAttributes(bytea,text,boolean,boolean DEFAULT TRUE) RETURNS SETOF text
 	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
 
-CREATE OR REPLACE FUNCTION x509_altNames(bytea,integer DEFAULT NULL,boolean DEFAULT TRUE) RETURNS SETOF text
+CREATE OR REPLACE FUNCTION x509_altNames(bytea,integer DEFAULT NULL,boolean DEFAULT TRUE,boolean DEFAULT TRUE) RETURNS SETOF text
 	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
 
 CREATE OR REPLACE FUNCTION x509_cRLDistributionPoints(bytea) RETURNS SETOF text
