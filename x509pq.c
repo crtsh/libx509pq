@@ -2463,6 +2463,101 @@ Datum x509_anynameswithnuls(
 }
 
 
+typedef struct tExtensionsCtx_st{
+	X509* m_x509;
+	STACK_OF(X509_EXTENSION)* m_extensions;
+	int m_index;
+} tExtensionsCtx;
+
+
+/******************************************************************************
+ * X509_extensions()                                                          *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_extensions);
+Datum x509_extensions(
+	PG_FUNCTION_ARGS
+)
+{
+	X509_EXTENSION* t_extension;
+	ASN1_OBJECT* t_extensionOID;
+	tExtensionsCtx* t_extensionsCtx;
+	FuncCallContext* t_funcCtx;
+
+	if (SRF_IS_FIRSTCALL()) {
+		MemoryContext t_oldMemoryCtx;
+		bytea* t_bytea = NULL;
+		text* t_text = NULL;
+		const unsigned char* t_pointer = NULL;
+
+		/* Create a function context for cross-call persistence */
+		t_funcCtx = SRF_FIRSTCALL_INIT();
+		/* Switch to memory context appropriate for multiple function
+		  calls */
+		t_oldMemoryCtx = MemoryContextSwitchTo(
+			t_funcCtx->multi_call_memory_ctx
+		);
+
+		/* Allocate memory for our user-defined structure and initialize
+		  it */
+		t_funcCtx->user_fctx = t_extensionsCtx
+					= palloc(sizeof(tExtensionsCtx));
+		memset(t_extensionsCtx, '\0', sizeof(tExtensionsCtx));
+
+		/* One-time setup code */
+		if (!PG_ARGISNULL(0)) {
+			t_bytea = PG_GETARG_BYTEA_P(0);
+			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_extensionsCtx->m_x509 = d2i_X509(
+				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+			);
+		}
+		if (t_extensionsCtx->m_x509) {
+#ifdef X509_get0_extensions
+			t_extensionsCtx->m_extensions = X509_get0_extensions(
+				t_extensionsCtx->m_x509
+			);
+#else
+			t_extensionsCtx->m_extensions =
+				t_extensionsCtx->m_x509->cert_info->extensions;
+#endif
+		}
+
+		MemoryContextSwitchTo(t_oldMemoryCtx);
+	}
+
+	/* Each-time setup code */
+	t_funcCtx = SRF_PERCALL_SETUP();
+	t_extensionsCtx = t_funcCtx->user_fctx;
+
+	if (t_extensionsCtx->m_extensions) {
+		while (t_extensionsCtx->m_index < sk_X509_EXTENSION_num(
+					t_extensionsCtx->m_extensions)) {
+			t_extension = sk_X509_EXTENSION_value(
+				t_extensionsCtx->m_extensions,
+				t_extensionsCtx->m_index++
+			);
+			t_extensionOID = X509_EXTENSION_get_object(t_extension);
+
+			text* t_text = palloc(MAX_OIDSTRING_LENGTH + VARHDRSZ);
+
+			(void)OBJ_obj2txt(
+				VARDATA(t_text), MAX_OIDSTRING_LENGTH,
+				t_extensionOID, PG_GETARG_BOOL(1) ? 1 : 0
+			);
+
+			SET_VARSIZE(t_text, strlen(VARDATA(t_text)) + VARHDRSZ);
+
+			SRF_RETURN_NEXT(
+				t_funcCtx, PointerGetDatum(t_text)
+			);
+		}
+	}
+
+	X509_free(t_extensionsCtx->m_x509);
+	SRF_RETURN_DONE(t_funcCtx);
+}
+
+
 /* URL Encoding - characters to not encode:
  * 33 (!)
  * 39-42 ('()*)

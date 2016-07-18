@@ -42,6 +42,8 @@ DROP FUNCTION x509_nameAttributes(bytea,text,boolean);
 
 DROP FUNCTION x509_altNames(bytea,integer,boolean);
 
+DROP FUNCTION x509_extensions(bytea,boolean);
+
 DROP FUNCTION x509_cRLDistributionPoints(bytea);
 
 DROP FUNCTION x509_authorityInfoAccess(bytea,integer);
