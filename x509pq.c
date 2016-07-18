@@ -1122,10 +1122,8 @@ Datum x509_extkeyusages(
 				t_funcCtx, PointerGetDatum(t_text)
 			);
 		}
-	}
-
-	if (t_extKeyUsageCtx && t_extKeyUsageCtx->m_extKeyUsages)
 		EXTENDED_KEY_USAGE_free(t_extKeyUsageCtx->m_extKeyUsages);
+	}
 
 	SRF_RETURN_DONE(t_funcCtx);
 }
@@ -1191,7 +1189,7 @@ Datum x509_isekupermitted(
 					break;
 				}
 			}
-			EXTENDED_KEY_USAGE(t_extendedKeyUsage);
+			EXTENDED_KEY_USAGE_free(t_extendedKeyUsage);
 		}
 
 	label_done:
@@ -1286,10 +1284,8 @@ Datum x509_certpolicies(
 				t_funcCtx, PointerGetDatum(t_text)
 			);
 		}
-	}
-
-	if (t_certPoliciesCtx && t_certPoliciesCtx->m_certPolicies)
 		CERTIFICATEPOLICIES_free(t_certPoliciesCtx->m_certPolicies);
+	}
 
 	SRF_RETURN_DONE(t_funcCtx);
 }
@@ -1985,8 +1981,10 @@ Datum x509_altnames(
 					t_funcCtx, PointerGetDatum(t_text)
 				);
 		}
-		GENERAL_NAMES_free(t_altNamesCtx->m_genNames);
 	}
+
+	if (t_altNamesCtx->m_genNames)
+		GENERAL_NAMES_free(t_altNamesCtx->m_genNames);
 
 	SRF_RETURN_DONE(t_funcCtx);
 }
@@ -2102,13 +2100,10 @@ Datum x509_crldistributionpoints(
 				);
 			}
 		}
-	}
-
-	if (t_cRLDistributionPointsCtx
-			&& t_cRLDistributionPointsCtx->m_cRLDistributionPoints)
 		CRL_DIST_POINTS_free(
 			t_cRLDistributionPointsCtx->m_cRLDistributionPoints
 		);
+	}
 
 	SRF_RETURN_DONE(t_funcCtx);
 }
@@ -2234,13 +2229,10 @@ Datum x509_authorityinfoaccess(
 				);
 			}
 		}
+		AUTHORITY_INFO_ACCESS_free(
+			t_authorityInfoAccessCtx->m_authorityInfoAccess
+		);
 	}
-
-	if (t_authorityInfoAccessCtx)
-		if (t_authorityInfoAccessCtx->m_authorityInfoAccess)
-			AUTHORITY_INFO_ACCESS_free(
-				t_authorityInfoAccessCtx->m_authorityInfoAccess
-			);
 
 	SRF_RETURN_DONE(t_funcCtx);
 }
@@ -2553,7 +2545,9 @@ Datum x509_extensions(
 		}
 	}
 
-	X509_free(t_extensionsCtx->m_x509);
+	if (t_extensionsCtx->m_x509)
+		X509_free(t_extensionsCtx->m_x509);
+
 	SRF_RETURN_DONE(t_funcCtx);
 }
 
