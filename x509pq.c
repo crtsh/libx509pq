@@ -2271,14 +2271,15 @@ Datum x509_print(
 		/* "Print" the certificate */
 		(void)X509_print_ex(
 			t_bio, t_x509,
-			PG_ARGISNULL(1) ? ((ASN1_STRFLGS_RFC2253
-							| ASN1_STRFLGS_ESC_QUOTE
-							| XN_FLAG_DN_REV
-							| XN_FLAG_FN_ALIGN
-							| XN_FLAG_FN_LN
-							| XN_FLAG_SEP_MULTILINE
-							| XN_FLAG_SPC_EQ)
-						& ~ASN1_STRFLGS_ESC_MSB)
+			PG_ARGISNULL(1) ? (ASN1_STRFLGS_DUMP_DER
+						| ASN1_STRFLGS_DUMP_UNKNOWN
+						| ASN1_STRFLGS_ESC_CTRL
+						| ASN1_STRFLGS_UTF8_CONVERT
+						| XN_FLAG_DN_REV
+						| XN_FLAG_FN_ALIGN
+						| XN_FLAG_FN_LN
+						| XN_FLAG_SEP_MULTILINE
+						| XN_FLAG_SPC_EQ)
 					: PG_GETARG_INT32(1),
 			PG_ARGISNULL(2) ? 0 : PG_GETARG_INT32(2)
 		);
