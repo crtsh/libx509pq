@@ -154,7 +154,9 @@ void _PG_init(void)
 	/* We need MD2 to verify old MD2/RSA certificate signatures, but
 	  OpenSSL_add_all_digests() no longer enables MD2 by default */
 	OpenSSL_add_all_digests();
+#ifndef OPENSSL_NO_MD2
 	EVP_add_digest(EVP_md2());
+#endif
 
 	ERR_load_crypto_strings();
 
