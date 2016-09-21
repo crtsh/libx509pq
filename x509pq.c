@@ -1758,6 +1758,137 @@ Datum x509_nameattributes(
 }
 
 
+typedef struct tNameAttributesRawCtx_st{
+	X509* m_x509;
+	X509_NAME* m_name;
+	int m_index;
+	bool* m_nulls;
+} tNameAttributesRawCtx;
+
+
+/******************************************************************************
+ * x509_nameattributes_raw()                                                  *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_nameattributes_raw);
+Datum x509_nameattributes_raw(
+	PG_FUNCTION_ARGS
+)
+{
+	tNameAttributesRawCtx* t_nameAttributesRawCtx;
+	FuncCallContext* t_funcCtx;
+	TupleDesc t_tupleDesc;
+
+	if (SRF_IS_FIRSTCALL()) {
+		MemoryContext t_oldMemoryCtx;
+		bytea* t_bytea = NULL;
+		const unsigned char* t_pointer = NULL;
+
+		/* Create a function context for cross-call persistence */
+		t_funcCtx = SRF_FIRSTCALL_INIT();
+		/* Switch to memory context appropriate for multiple function
+		  calls */
+		t_oldMemoryCtx = MemoryContextSwitchTo(
+			t_funcCtx->multi_call_memory_ctx
+		);
+
+		/* Allocate memory for our user-defined structure and initialize
+		  it */
+		t_funcCtx->user_fctx = t_nameAttributesRawCtx
+					= palloc(sizeof(tNameAttributesRawCtx));
+		memset(t_nameAttributesRawCtx, '\0', sizeof(tNameAttributesRawCtx));
+
+		/* Build a tuple descriptor for our result type */
+		if (get_call_result_type(fcinfo, NULL, &t_tupleDesc) != TYPEFUNC_COMPOSITE)
+			ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				errmsg("function returning record called in context "
+					"that cannot accept type record"))
+			);
+
+		t_funcCtx->tuple_desc = BlessTupleDesc(t_tupleDesc);
+		t_nameAttributesRawCtx->m_nulls = (bool*)palloc((t_tupleDesc->natts) * sizeof(bool));
+		memset(t_nameAttributesRawCtx->m_nulls, TRUE, (t_tupleDesc->natts) * sizeof(bool));
+
+		/* One-time setup code */
+		if (!PG_ARGISNULL(0)) {
+			t_bytea = PG_GETARG_BYTEA_P(0);
+			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_nameAttributesRawCtx->m_x509 = d2i_X509(
+				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+			);
+		}
+		if (t_nameAttributesRawCtx->m_x509) {
+			if (PG_GETARG_BOOL(1))
+				t_nameAttributesRawCtx->m_name = X509_get_subject_name(
+					t_nameAttributesRawCtx->m_x509
+				);
+			else
+				t_nameAttributesRawCtx->m_name = X509_get_issuer_name(
+					t_nameAttributesRawCtx->m_x509
+				);
+		}
+
+		MemoryContextSwitchTo(t_oldMemoryCtx);
+	}
+
+	/* Each-time setup code */
+	t_funcCtx = SRF_PERCALL_SETUP();
+	t_nameAttributesRawCtx = t_funcCtx->user_fctx;
+
+	if (t_nameAttributesRawCtx->m_name) {
+		while (t_nameAttributesRawCtx->m_index < X509_NAME_entry_count(
+					t_nameAttributesRawCtx->m_name)) {
+			X509_NAME_ENTRY* t_nameEntry = X509_NAME_get_entry(
+				t_nameAttributesRawCtx->m_name,
+				t_nameAttributesRawCtx->m_index
+			);
+			char* t_utf8String = NULL;
+			Datum t_datum[2];
+
+			/* Increment the counter while we can */
+			t_nameAttributesRawCtx->m_index++;
+
+			ASN1_STRING* t_asn1String = X509_NAME_ENTRY_get_data(t_nameEntry);
+			int t_length = ASN1_STRING_to_UTF8(
+				(unsigned char**)&t_utf8String, t_asn1String
+			);
+
+			char t_oid_numerical[80] = "";
+			OBJ_obj2txt(t_oid_numerical, sizeof(t_oid_numerical),
+					X509_NAME_ENTRY_get_object(t_nameEntry), 1);
+			text* t_oidText = palloc(strlen(t_oid_numerical) + VARHDRSZ);
+			SET_VARSIZE(t_oidText, strlen(t_oid_numerical) + VARHDRSZ);
+			memcpy((void*)VARDATA(t_oidText), t_oid_numerical, strlen(t_oid_numerical));
+			t_datum[0] = PointerGetDatum(t_oidText);
+			t_nameAttributesRawCtx->m_nulls[0] = FALSE;
+
+			bytea* t_rawValue = palloc(t_length + VARHDRSZ);
+			SET_VARSIZE(t_rawValue, t_length + VARHDRSZ);
+			memcpy((void*)VARDATA(t_rawValue), t_utf8String, t_length);
+			OPENSSL_free(t_utf8String);
+			t_datum[1] = PointerGetDatum(t_rawValue);
+			t_nameAttributesRawCtx->m_nulls[1] = FALSE;
+
+			Datum t_compositeDatum;
+			HeapTuple t_heapTuple = heap_form_tuple(
+				t_funcCtx->tuple_desc, t_datum,
+				t_nameAttributesRawCtx->m_nulls
+			);
+			if (t_heapTuple) {
+				t_compositeDatum = HeapTupleGetDatum(t_heapTuple);
+				if (t_compositeDatum)
+					SRF_RETURN_NEXT(t_funcCtx, t_compositeDatum);
+			}
+		}
+	}
+
+	if (t_nameAttributesRawCtx->m_x509)
+		X509_free(t_nameAttributesRawCtx->m_x509);
+
+	SRF_RETURN_DONE(t_funcCtx);
+}
+
+
 typedef struct tAltNamesCtx_st{
 	STACK_OF(GENERAL_NAME)* m_genNames;
 	int m_index;
