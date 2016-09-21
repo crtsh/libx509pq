@@ -42,6 +42,29 @@ PG_MODULE_MAGIC;
 #define MAX_OIDSTRING_LENGTH   80
 
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L	/* < 1.1.0 */
+	#define ASN1_STRING_get0_data		ASN1_STRING_data
+	#define SIGNATURE_ALGORITHM		X509_ALGOR
+	#define SIGNATURE_BIT_STRING		ASN1_BIT_STRING
+	#define X509_get0_extensions(x)		(x)->cert_info->extensions
+	#define X509_get0_notAfter		X509_get_notAfter
+	#define X509_get0_notBefore		X509_get_notBefore
+	#define X509_get0_tbs_sigalg(x)		(x)->cert_info->signature
+#else						/* >= 1.1.0 */
+	#define SIGNATURE_ALGORITHM		const X509_ALGOR
+	#define SIGNATURE_BIT_STRING		const ASN1_BIT_STRING
+#endif
+
+#if OPENSSL_VERSION_NUMBER < 0x10002000L	/* < 1.0.2 */
+	#define X509_get_signature_nid(x)	(x)->sig_alg->algorithm
+	#define X509_GET_SIGNATURE(psig, x)	(*(psig)) = (x)->signature
+	#define X509_GET_SIGALGNID(palg, x)	(*(palg)) = (x)->sig_alg
+#else						/* >= 1.0.2 */
+	#define X509_GET_SIGNATURE(psig, x)	X509_get0_signature(psig, NULL, x)
+	#define X509_GET_SIGALGNID(palg, x)	X509_get0_signature(NULL, palg, x)
+#endif
+
+
 /* Define the old draft Basic Constraints extension, which is supported by
   CryptoAPI and used in the SGC cross-certs.
   See http://tools.ietf.org/html/draft-ietf-pkix-ipki-part1-01 */
@@ -150,7 +173,6 @@ static ENGINE* g_gostEngine = NULL;
  ******************************************************************************/
 void _PG_init(void)
 {
-
 	/* We need MD2 to verify old MD2/RSA certificate signatures, but
 	  OpenSSL_add_all_digests() no longer enables MD2 by default */
 	OpenSSL_add_all_digests();
@@ -421,7 +443,7 @@ Datum x509_keyalgorithm(
 		goto label_error;
 
 	/* Get the name of the algorithm used by this key */
-	switch (t_publicKey->type) {
+	switch (EVP_PKEY_id(t_publicKey)) {
 		case EVP_PKEY_RSA: case EVP_PKEY_RSA2:
 			t_string = "RSA";
 			break;
@@ -519,7 +541,7 @@ Datum x509_notafter(
 	if (!t_x509)
 		PG_RETURN_NULL();
 
-	t_iResult = ASN1_TIME_parse(X509_get_notAfter(t_x509), &t_time);
+	t_iResult = ASN1_TIME_parse(X509_get0_notAfter(t_x509), &t_time);
 
 	X509_free(t_x509);
 
@@ -555,7 +577,7 @@ Datum x509_notbefore(
 	if (!t_x509)
 		PG_RETURN_NULL();
 
-	t_iResult = ASN1_TIME_parse(X509_get_notBefore(t_x509), &t_time);
+	t_iResult = ASN1_TIME_parse(X509_get0_notBefore(t_x509), &t_time);
 
 	X509_free(t_x509);
 
@@ -698,11 +720,16 @@ Datum x509_serialnumber(
 		PG_RETURN_NULL();
 
 	t_asn1Integer = X509_get_serialNumber(t_x509);
-
-	t_serialNumber = palloc(VARHDRSZ + t_asn1Integer->length + 1);
-	t_pointer = (unsigned char*)t_serialNumber + VARHDRSZ;
-	t_size = i2c_ASN1_INTEGER(X509_get_serialNumber(t_x509), &t_pointer);
-	SET_VARSIZE(t_serialNumber, VARHDRSZ + t_size);
+	t_size = i2d_ASN1_INTEGER(t_asn1Integer, NULL);
+	if (t_size > 129)	/* Multiple length octets not supported */
+		PG_RETURN_NULL();
+	t_serialNumber = palloc(VARHDRSZ + t_size - 2);
+	t_pointer = (unsigned char*)t_serialNumber + VARHDRSZ - 2;
+	/* The tag octet and length octet are decoded into the last 2 bytes of
+	  the VARHDRSZ section... */
+	(void)i2d_ASN1_INTEGER(t_asn1Integer, &t_pointer);
+	/* ...and then overwritten */
+	SET_VARSIZE(t_serialNumber, VARHDRSZ + t_size - 2);
 
 	X509_free(t_x509);
 
@@ -719,6 +746,7 @@ Datum x509_signaturehashalgorithm(
 )
 {
 	X509* t_x509 = NULL;
+	SIGNATURE_ALGORITHM* t_sigAlg;
 	bytea* t_bytea = NULL;
 	text* t_text = NULL;
 	const unsigned char* t_pointer = NULL;
@@ -738,7 +766,8 @@ Datum x509_signaturehashalgorithm(
 		goto label_return;
 
 	/* Get the names of the algorithms used to generate the signature */
-	t_sigAlgNID = OBJ_obj2nid(t_x509->sig_alg->algorithm);
+	X509_GET_SIGALGNID(&t_sigAlg, t_x509);
+	t_sigAlgNID = OBJ_obj2nid(t_sigAlg->algorithm);
 	t_iResult = OBJ_find_sigid_algs(
 		t_sigAlgNID, &t_sigHashAlgNID, &t_sigKeyAlgNID
 	);
@@ -774,6 +803,7 @@ Datum x509_signaturekeyalgorithm(
 )
 {
 	X509* t_x509 = NULL;
+	SIGNATURE_ALGORITHM* t_sigAlg;
 	bytea* t_bytea = NULL;
 	text* t_text = NULL;
 	const unsigned char* t_pointer = NULL;
@@ -793,7 +823,8 @@ Datum x509_signaturekeyalgorithm(
 		goto label_return;
 
 	/* Get the names of the algorithms used to generate the signature */
-	t_sigAlgNID = OBJ_obj2nid(t_x509->sig_alg->algorithm);
+	X509_GET_SIGALGNID(&t_sigAlg, t_x509);
+	t_sigAlgNID = OBJ_obj2nid(t_sigAlg->algorithm);
 	t_iResult = OBJ_find_sigid_algs(
 		t_sigAlgNID, &t_sigHashAlgNID, &t_sigKeyAlgNID
 	);
@@ -1032,7 +1063,7 @@ Datum x509_subjectkeyidentifier(
 	t_size = ASN1_STRING_length(t_asn1OctetString);
 	t_subjectKeyIdentifier = palloc(VARHDRSZ + t_size);
 	t_pointer = (unsigned char*)t_subjectKeyIdentifier + VARHDRSZ;
-	memcpy(t_pointer, ASN1_STRING_data(t_asn1OctetString), t_size);
+	memcpy(t_pointer, ASN1_STRING_get0_data(t_asn1OctetString), t_size);
 	SET_VARSIZE(t_subjectKeyIdentifier, VARHDRSZ + t_size);
 
 	ASN1_OCTET_STRING_free(t_asn1OctetString);
@@ -1381,7 +1412,8 @@ Datum x509_canissuecerts(
 	BASIC_CONSTRAINTS* t_basicConstraints;
 	BASIC_CONSTRAINTS_OLD* t_bCold = NULL;
 	ASN1_BIT_STRING* t_keyUsage;
-	X509_EXTENSION* t_extension;
+	SIGNATURE_BIT_STRING* t_signature;
+	ASN1_OCTET_STRING* t_oldBasicConstraints;
 	bytea* t_bytea = NULL;
 	const unsigned char* t_pointer = NULL;
 	unsigned long t_keyUsageBits;
@@ -1422,10 +1454,12 @@ Datum x509_canissuecerts(
 		/* Is the old draft Basic Constraints extension present? */
 		t_pos = X509_get_ext_by_NID(t_x509, v3_bcOld.ext_nid, -1);
 		if (t_pos > -1) {
-			t_extension = X509_get_ext(t_x509, t_pos);
-			t_pointer = t_extension->value->data;
+			t_oldBasicConstraints = X509_EXTENSION_get_data(
+				X509_get_ext(t_x509, t_pos)
+			);
+			t_pointer = t_oldBasicConstraints->data;
 			t_bCold = (BASIC_CONSTRAINTS_OLD*)ASN1_item_d2i(
-				NULL, &t_pointer, t_extension->value->length,
+				NULL, &t_pointer, t_oldBasicConstraints->length,
 				ASN1_ITEM_ptr(v3_bcOld.it)
 			);
 			if (!t_bCold)
@@ -1452,9 +1486,10 @@ Datum x509_canissuecerts(
 		  Authority Root Certificate doesn't contain either of the Basic
 		  Constraints extensions, yet old CryptoAPI versions treat is as
 		  a valid issuer nonetheless */
-		if (t_x509->signature->length == 256)
-			if (!memcmp(g_rootSGCAuthority_sig,
-					t_x509->signature->data, 256)) {
+		X509_GET_SIGNATURE(&t_signature, t_x509);
+		if (t_signature->length == 256)
+			if (!memcmp(g_rootSGCAuthority_sig, t_signature->data,
+					256)) {
 				t_bResult = TRUE;
 				goto label_checkKeyUsage;
 			}
@@ -1501,7 +1536,8 @@ Datum x509_getpathlenconstraint(
 	X509* t_x509 = NULL;
 	BASIC_CONSTRAINTS* t_basicConstraints;
 	BASIC_CONSTRAINTS_OLD* t_bCold = NULL;
-	X509_EXTENSION* t_extension;
+	SIGNATURE_BIT_STRING* t_signature;
+	ASN1_OCTET_STRING* t_oldBasicConstraints;
 	bytea* t_bytea = NULL;
 	const unsigned char* t_pointer = NULL;
 	unsigned long t_subjTypeBits;
@@ -1543,10 +1579,12 @@ Datum x509_getpathlenconstraint(
 		/* Is the draft Basic Constraints extension present? */
 		t_pos = X509_get_ext_by_NID(t_x509, v3_bcOld.ext_nid, -1);
 		if (t_pos > -1) {
-			t_extension = X509_get_ext(t_x509, t_pos);
-			t_pointer = t_extension->value->data;
+			t_oldBasicConstraints = X509_EXTENSION_get_data(
+				X509_get_ext(t_x509, t_pos)
+			);
+			t_pointer = t_oldBasicConstraints->data;
 			t_bCold = (BASIC_CONSTRAINTS_OLD*)ASN1_item_d2i(
-				NULL, &t_pointer, t_extension->value->length,
+				NULL, &t_pointer, t_oldBasicConstraints->length,
 				ASN1_ITEM_ptr(v3_bcOld.it)
 			);
 			if (!t_bCold)
@@ -1578,9 +1616,10 @@ Datum x509_getpathlenconstraint(
 		  Authority Root Certificate doesn't contain either of the Basic
 		  Constraints extensions, yet old CryptoAPI versions treat is as
 		  a valid issuer nonetheless */
-		if (t_x509->signature->length == 256)
-			if (!memcmp(g_rootSGCAuthority_sig,
-					t_x509->signature->data, 256)) {
+		X509_GET_SIGNATURE(&t_signature, t_x509);
+		if (t_signature->length == 256)
+			if (!memcmp(g_rootSGCAuthority_sig, t_signature->data,
+					256)) {
 				t_iResult = -999;
 				goto label_done;
 			}
@@ -2797,7 +2836,7 @@ Datum x509_anynameswithnuls(
 
 typedef struct tExtensionsCtx_st{
 	X509* m_x509;
-	STACK_OF(X509_EXTENSION)* m_extensions;
+	const STACK_OF(X509_EXTENSION)* m_extensions;
 	int m_index;
 } tExtensionsCtx;
 
@@ -2844,14 +2883,9 @@ Datum x509_extensions(
 			);
 		}
 		if (t_extensionsCtx->m_x509) {
-#ifdef X509_get0_extensions
 			t_extensionsCtx->m_extensions = X509_get0_extensions(
 				t_extensionsCtx->m_x509
 			);
-#else
-			t_extensionsCtx->m_extensions =
-				t_extensionsCtx->m_x509->cert_info->extensions;
-#endif
 		}
 
 		MemoryContextSwitchTo(t_oldMemoryCtx);
