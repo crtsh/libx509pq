@@ -19,6 +19,7 @@
 #include "postgres.h"
 #include "funcapi.h"
 #include "fmgr.h"
+#include "access/htup_details.h"
 #include "utils/timestamp.h"
 #include "utils/builtins.h"
 
@@ -101,7 +102,6 @@ static const unsigned char g_rootSGCAuthority_sig[] = {
 	0x75, 0x14, 0x12, 0x8c, 0x46, 0xa4, 0xac, 0xef, 0x4c, 0x72, 0x00, 0x00,
 	0xe1, 0x4c, 0x8e, 0xee
 };
-
 
 /* Algorithm names */
 typedef struct tAlgorithm {
@@ -1987,6 +1987,212 @@ Datum x509_altnames(
 
 	if (t_altNamesCtx->m_genNames)
 		GENERAL_NAMES_free(t_altNamesCtx->m_genNames);
+
+	SRF_RETURN_DONE(t_funcCtx);
+}
+
+
+typedef struct tAltNamesRawCtx_st{
+	STACK_OF(GENERAL_NAME)* m_genNames;
+	int m_index;
+	bool* m_nulls;
+} tAltNamesRawCtx;
+
+
+
+/******************************************************************************
+ * x509_altnames_raw()                                                        *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_altnames_raw);
+Datum x509_altnames_raw(
+	PG_FUNCTION_ARGS
+)
+{
+	tAltNamesRawCtx* t_altNamesRawCtx;
+	FuncCallContext* t_funcCtx;
+	TupleDesc t_tupleDesc;
+
+	if (SRF_IS_FIRSTCALL()) {
+		X509* t_x509 = NULL;
+		MemoryContext t_oldMemoryCtx;
+		bytea* t_bytea = NULL;
+		const unsigned char* t_pointer = NULL;
+
+		/* Create a function context for cross-call persistence */
+		t_funcCtx = SRF_FIRSTCALL_INIT();
+		/* Switch to memory context appropriate for multiple function
+		  calls */
+		t_oldMemoryCtx = MemoryContextSwitchTo(
+			t_funcCtx->multi_call_memory_ctx
+		);
+
+		/* Allocate memory for our user-defined structure and initialize
+		  it */
+		t_funcCtx->user_fctx = t_altNamesRawCtx
+					= palloc(sizeof(tAltNamesRawCtx));
+		memset(t_altNamesRawCtx, '\0', sizeof(tAltNamesRawCtx));
+
+		/* Build a tuple descriptor for our result type */
+		if (get_call_result_type(fcinfo, NULL, &t_tupleDesc) != TYPEFUNC_COMPOSITE)
+			ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				errmsg("function returning record called in context "
+					"that cannot accept type record"))
+			);
+
+		t_funcCtx->tuple_desc = BlessTupleDesc(t_tupleDesc);
+		t_altNamesRawCtx->m_nulls = (bool*)palloc((t_tupleDesc->natts) * sizeof(bool));
+		memset(t_altNamesRawCtx->m_nulls, TRUE, (t_tupleDesc->natts) * sizeof(bool));
+
+		/* One-time setup code */
+		if (!PG_ARGISNULL(0)) {
+			t_bytea = PG_GETARG_BYTEA_P(0);
+			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_x509 = d2i_X509(
+				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+			);
+		}
+		if (t_x509) {
+			t_altNamesRawCtx->m_genNames = X509_get_ext_d2i(
+				t_x509,
+				PG_GETARG_BOOL(1) ? NID_subject_alt_name
+						: NID_issuer_alt_name,
+				NULL, NULL
+			);
+
+			X509_free(t_x509);
+		}
+
+		MemoryContextSwitchTo(t_oldMemoryCtx);
+	}
+
+	/* Each-time setup code */
+	t_funcCtx = SRF_PERCALL_SETUP();
+	t_altNamesRawCtx = t_funcCtx->user_fctx;
+
+	if (t_altNamesRawCtx->m_genNames) {
+		while (t_altNamesRawCtx->m_index < sk_GENERAL_NAME_num(
+						t_altNamesRawCtx->m_genNames)) {
+			char* t_utf8String = NULL;
+			int t_length = -1;
+			ASN1_OBJECT* t_oid = NULL;
+
+			/* Pull out this GeneralName */
+			const GENERAL_NAME* t_generalName
+				= sk_GENERAL_NAME_value(
+					t_altNamesRawCtx->m_genNames,
+					t_altNamesRawCtx->m_index
+				);
+
+			/* Increment the counter while we can */
+			t_altNamesRawCtx->m_index++;
+
+			/* IA5String types */
+			if ((t_generalName->type == GEN_EMAIL)
+					|| (t_generalName->type == GEN_DNS)
+					|| (t_generalName->type == GEN_URI))
+				t_length = ASN1_STRING_to_UTF8(
+					(unsigned char**)&t_utf8String,
+					t_generalName->d.ia5
+				);
+			/* OCTET STRING types */
+			else if (t_generalName->type == GEN_IPADD) {
+				if (t_generalName->d.iPAddress->length == 4) {
+					/* IPv4 */
+					t_utf8String = OPENSSL_malloc(16);
+					t_length = sprintf(
+						t_utf8String, "%d.%d.%d.%d",
+						t_generalName->d.iPAddress->data[0],
+						t_generalName->d.iPAddress->data[1],
+						t_generalName->d.iPAddress->data[2],
+						t_generalName->d.iPAddress->data[3]
+					);
+				}
+				else if (t_generalName->d.iPAddress->length == 16) {
+					/* IPv6 */
+					t_utf8String = OPENSSL_malloc(46);
+					t_length = sprintf(
+						t_utf8String, ":%X:%X:%X:%X:%X:%X:%X:%X",
+						t_generalName->d.iPAddress->data[0] << 8
+							| t_generalName->d.iPAddress->data[1],
+						t_generalName->d.iPAddress->data[2] << 8
+							| t_generalName->d.iPAddress->data[3],
+						t_generalName->d.iPAddress->data[4] << 8
+							| t_generalName->d.iPAddress->data[5],
+						t_generalName->d.iPAddress->data[6] << 8
+							| t_generalName->d.iPAddress->data[7],
+						t_generalName->d.iPAddress->data[8] << 8
+							| t_generalName->d.iPAddress->data[9],
+						t_generalName->d.iPAddress->data[10] << 8
+							| t_generalName->d.iPAddress->data[11],
+						t_generalName->d.iPAddress->data[12] << 8
+							| t_generalName->d.iPAddress->data[13],
+						t_generalName->d.iPAddress->data[14] << 8
+							| t_generalName->d.iPAddress->data[15]
+					);
+				}
+				else {
+					/* Invalid IP address */
+					t_length = 17;
+					t_utf8String = OPENSSL_malloc(18);
+					memcpy(t_utf8String, "Invalid iPAddress", 18);
+				}
+			}
+			/* OtherName UTF8String types */
+			else if (t_generalName->type == GEN_OTHERNAME) {
+				ASN1_TYPE* t_asn1Type;
+				(void)GENERAL_NAME_get0_otherName(
+					(GENERAL_NAME*)t_generalName, &t_oid, &t_asn1Type
+				);
+				t_length = ASN1_STRING_to_UTF8(
+					(unsigned char**)&t_utf8String,
+					t_asn1Type->value.asn1_string
+				);
+			}
+
+			if (t_utf8String) {
+				bytea* t_rawValue = palloc(t_length + VARHDRSZ);
+				SET_VARSIZE(t_rawValue, t_length + VARHDRSZ);
+				memcpy((void*)VARDATA(t_rawValue), t_utf8String,
+					t_length);
+				OPENSSL_free(t_utf8String);
+
+				Datum t_datum[3];
+				t_datum[0] = Int32GetDatum(t_generalName->type);
+				t_altNamesRawCtx->m_nulls[0] = FALSE;
+				t_datum[1] = PointerGetDatum(t_rawValue);
+				t_altNamesRawCtx->m_nulls[1] = FALSE;
+
+				if (t_oid) {
+					char t_oid_numerical[80] = "";
+					OBJ_obj2txt(t_oid_numerical, sizeof(t_oid_numerical), t_oid, 1);
+					text* t_oidText = palloc(strlen(t_oid_numerical) + VARHDRSZ);
+					SET_VARSIZE(t_oidText, strlen(t_oid_numerical) + VARHDRSZ);
+					memcpy((void*)VARDATA(t_oidText), t_oid_numerical, strlen(t_oid_numerical));
+					t_datum[2] = PointerGetDatum(t_oidText);
+					t_altNamesRawCtx->m_nulls[2] = FALSE;
+				}
+				else
+					t_altNamesRawCtx->m_nulls[2] = TRUE;
+
+				Datum t_compositeDatum;
+				HeapTuple t_heapTuple = heap_form_tuple(
+					t_funcCtx->tuple_desc, t_datum,
+					t_altNamesRawCtx->m_nulls
+				);
+				if (t_heapTuple) {
+					t_compositeDatum = HeapTupleGetDatum(t_heapTuple);
+					if (t_compositeDatum)
+						SRF_RETURN_NEXT(t_funcCtx, t_compositeDatum);
+				}
+			}
+		}
+	}
+
+	if (t_altNamesRawCtx->m_genNames)
+		GENERAL_NAMES_free(t_altNamesRawCtx->m_genNames);
+	if (t_altNamesRawCtx->m_nulls)
+		pfree(t_altNamesRawCtx->m_nulls);
 
 	SRF_RETURN_DONE(t_funcCtx);
 }
