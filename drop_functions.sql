@@ -40,7 +40,15 @@ DROP FUNCTION x509_getPathLenConstraint(bytea);
 
 DROP FUNCTION x509_nameAttributes(bytea,text,boolean);
 
+DROP FUNCTION x509_nameAttributes_raw(bytea,boolean);
+
+DROP TYPE name_raw_type;
+
 DROP FUNCTION x509_altNames(bytea,integer,boolean);
+
+DROP FUNCTION x509_altNames_raw(bytea,boolean);
+
+DROP TYPE altname_raw_type;
 
 DROP FUNCTION x509_anyNamesWithNULs(bytea);
 

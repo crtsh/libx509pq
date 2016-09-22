@@ -61,7 +61,24 @@ CREATE OR REPLACE FUNCTION x509_getPathLenConstraint(bytea) RETURNS integer
 CREATE OR REPLACE FUNCTION x509_nameAttributes(bytea,text,boolean,boolean DEFAULT TRUE) RETURNS SETOF text
 	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
 
+CREATE TYPE name_raw_type AS (
+	ATTRIBUTE_OID		text,
+	RAW_VALUE		bytea
+);
+
+CREATE OR REPLACE FUNCTION x509_nameAttributes_raw(bytea,boolean DEFAULT TRUE) RETURNS SETOF name_raw_type
+	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION x509_altNames(bytea,integer DEFAULT NULL,boolean DEFAULT TRUE,boolean DEFAULT TRUE) RETURNS SETOF text
+	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
+
+CREATE TYPE altname_raw_type AS (
+	TYPE_NUM		integer,
+	RAW_VALUE		bytea,
+	OTHER_NAME_OID	text
+);
+
+CREATE OR REPLACE FUNCTION x509_altNames_raw(bytea,boolean DEFAULT TRUE) RETURNS SETOF altname_raw_type
 	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
 
 CREATE OR REPLACE FUNCTION x509_anyNamesWithNULs(bytea) RETURNS boolean
