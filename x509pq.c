@@ -964,6 +964,65 @@ label_error:
 
 
 /******************************************************************************
+ * x509_name_print()                                                                *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_name_print);
+Datum x509_name_print(
+	PG_FUNCTION_ARGS
+)
+{
+	X509_NAME* t_x509Name = NULL;
+	BIO* t_bio;
+	bytea* t_bytea = NULL;
+	text* t_text = NULL;
+	const unsigned char* t_pointer = NULL;
+	char* t_string = NULL;
+	long t_size;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509Name = d2i_X509_NAME(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509Name) {
+		t_text = palloc(strlen(g_error) + VARHDRSZ);
+		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
+		memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+	}
+	else {
+		/* Create a memory BIO and tell it to make sure that it clears
+		  up all its memory when we close it later */
+		t_bio = BIO_new(BIO_s_mem());
+		(void)BIO_set_close(t_bio, BIO_CLOSE);
+		/* Express the Name as a one-line string */
+		(void)X509_NAME_print_ex(
+			t_bio, t_x509Name, 0,
+			PG_ARGISNULL(1) ? ((ASN1_STRFLGS_RFC2253
+							| ASN1_STRFLGS_ESC_QUOTE
+							| XN_FLAG_SEP_CPLUS_SPC
+							| XN_FLAG_FN_SN)
+						& ~ASN1_STRFLGS_ESC_MSB)
+					: PG_GETARG_INT32(1)
+		);
+
+		/* Get a pointer to the Name string and its size */
+		t_size = BIO_get_mem_data(t_bio, &t_string);
+
+		/* Copy the Name string to the return parameter */
+		t_text = palloc(t_size + VARHDRSZ);
+		SET_VARSIZE(t_text, t_size + VARHDRSZ);
+		memcpy((void*)VARDATA(t_text), t_string, t_size);
+
+		/* Free stuff */
+		BIO_free(t_bio);
+		X509_NAME_free(t_x509Name);
+	}
+
+	PG_RETURN_TEXT_P(t_text);
+}
+
+
+/******************************************************************************
  * x509_commonname()                                                          *
  ******************************************************************************/
 PG_FUNCTION_INFO_V1(x509_commonname);
