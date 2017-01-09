@@ -1,6 +1,6 @@
 /* libx509pq - a certificate parsing library for PostgreSQL
  * Written by Rob Stradling
- * Copyright (C) 2015-2016 COMODO CA Limited
+ * Copyright (C) 2015-2017 COMODO CA Limited
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
