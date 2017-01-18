@@ -34,6 +34,9 @@ CREATE OR REPLACE FUNCTION x509_subjectName(bytea,integer DEFAULT NULL) RETURNS 
 CREATE OR REPLACE FUNCTION x509_name(bytea,boolean DEFAULT TRUE) RETURNS bytea
 	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
 
+CREATE OR REPLACE FUNCTION x509_name_print(bytea,integer DEFAULT NULL) RETURNS text
+	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION x509_commonName(bytea) RETURNS text
 	AS '$libdir/libx509pq.so' LANGUAGE c IMMUTABLE;
 
