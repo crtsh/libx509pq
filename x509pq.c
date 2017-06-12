@@ -2430,6 +2430,7 @@ Datum x509_altnames_raw(
 typedef struct tCRLDistributionPointsCtx_st{
 	CRL_DIST_POINTS* m_cRLDistributionPoints;
 	int m_index;
+	int m_index2;
 } tCRLDistributionPointsCtx;
 
 
@@ -2492,28 +2493,25 @@ Datum x509_crldistributionpoints(
 	t_cRLDistributionPointsCtx = t_funcCtx->user_fctx;
 
 	if (t_cRLDistributionPointsCtx->m_cRLDistributionPoints) {
-		while (t_cRLDistributionPointsCtx->m_index
-				< sk_DIST_POINT_num(
-					t_cRLDistributionPointsCtx
-						->m_cRLDistributionPoints)
-				) {
+		while (t_cRLDistributionPointsCtx->m_index < sk_DIST_POINT_num(t_cRLDistributionPointsCtx->m_cRLDistributionPoints)) {
 			t_distPoint = sk_DIST_POINT_value(
-				t_cRLDistributionPointsCtx
-						->m_cRLDistributionPoints,
-				t_cRLDistributionPointsCtx->m_index++
+				t_cRLDistributionPointsCtx->m_cRLDistributionPoints,
+				t_cRLDistributionPointsCtx->m_index
 			);
-
-			/* We'll only consider distributionPoint->fullName */
-			if (!(t_distPoint->distpoint))
+			if ((t_distPoint->distpoint == NULL)
+					|| (t_distPoint->distpoint->type != 0)	/* We'll only consider distributionPoint->fullName */
+					|| (t_cRLDistributionPointsCtx->m_index2 >= sk_GENERAL_NAME_num(t_distPoint->distpoint->name.fullname))) {
+				/* If we've processed all of the GeneralNames in this DistributionPoint, move on to the next one */
+				t_cRLDistributionPointsCtx->m_index++;
+				t_cRLDistributionPointsCtx->m_index2 = 0;
 				continue;
-			if (t_distPoint->distpoint->type != 0)
-				continue;
+			}
 
 			char* t_utf8String = NULL;
-			const GENERAL_NAME* t_generalName =
-				sk_GENERAL_NAME_value(
-					t_distPoint->distpoint->name.fullname, 0
-				);
+			const GENERAL_NAME* t_generalName = sk_GENERAL_NAME_value(
+				t_distPoint->distpoint->name.fullname,
+				t_cRLDistributionPointsCtx->m_index2++
+			);
 
 			/* Check if this GeneralName is of interest */
 			if (t_generalName->type == GEN_URI)
