@@ -639,7 +639,7 @@ label_error:
 }
 
 /******************************************************************************
- * x509_tbscert_strip_ct_ext()
+ * x509_tbscert_strip_ct_ext()                                                *
  ******************************************************************************/
 PG_FUNCTION_INFO_V1(x509_tbscert_strip_ct_ext);
 Datum x509_tbscert_strip_ct_ext(
@@ -667,7 +667,7 @@ Datum x509_tbscert_strip_ct_ext(
 #else
 	int num_ext = X509_get_ext_count(t_x509);
 	int sct_pos = -1;
-  int poison_pos = -1;
+	int poison_pos = -1;
 	for (int k = 0; k < num_ext; ++k) {
 		char oid[256];
 		X509_EXTENSION* ex = X509_get_ext(t_x509, k);
@@ -675,22 +675,22 @@ Datum x509_tbscert_strip_ct_ext(
 		OBJ_obj2txt(oid, 255, ext_asn, 1);
 		if (strcmp(oid, "1.3.6.1.4.1.11129.2.4.2") == 0 && sct_pos == -1) {
 			sct_pos = k;
-    }
+		}
 		else if (strcmp(oid, "1.3.6.1.4.1.11129.2.4.3") == 0 && poison_pos == -1) {
 			poison_pos = k;
-    }
-    else if (sct_pos > -1 && poison_pos > -1) {
-      break; // found both positions
-    }
-  }
-#endif
-  // delete {sct,poison} extensions if either exists
-	if (sct_pos > -1) {
-    X509_EXTENSION_free(X509_delete_ext(t_x509, sct_pos));
+		}
+		else if (sct_pos > -1 && poison_pos > -1) {
+			break; // found both positions
+		}
 	}
-  if (poison_pos > -1) {
-    X509_EXTENSION_free(X509_delete_ext(t_x509, poison_pos));
-  }
+#endif
+	// delete {sct,poison} extensions if either exists
+	if (sct_pos > -1) {
+		X509_EXTENSION_free(X509_delete_ext(t_x509, sct_pos));
+	}
+	if (poison_pos > -1) {
+		X509_EXTENSION_free(X509_delete_ext(t_x509, poison_pos));
+	}
 
 	t_x509->cert_info->enc.modified = 1;
 	cert_length = i2d_X509_CINF(t_x509->cert_info, &cert_out);
@@ -705,7 +705,7 @@ Datum x509_tbscert_strip_ct_ext(
 label_error:
 	if (t_x509) {
 		X509_free(t_x509);
-  }
+	}
 
 	PG_RETURN_NULL();
 }
