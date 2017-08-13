@@ -22,7 +22,6 @@
 #include "access/htup_details.h"
 #include "utils/timestamp.h"
 #include "utils/builtins.h"
-#include "assert.h"
 
 #ifdef PG_MODULE_MAGIC
 PG_MODULE_MAGIC;
@@ -679,9 +678,6 @@ Datum x509_tbscert_strip_sct(
 		goto label_error;
 	}
 	X509_EXTENSION_free(X509_delete_ext(x, pos));
-#ifdef NID_ct_precert_scts
-	assert( X509_get_ext_by_NID(x, NID_ct_precert_scts, -1) == -1 );
-#endif
 
 	x->cert_info->enc.modified = 1;
 	cert_length = i2d_X509_CINF(x->cert_info, &cert_out);
@@ -741,9 +737,6 @@ Datum x509_tbscert_strip_poison(
 		goto label_error;
 	}
 	X509_EXTENSION_free(X509_delete_ext(x, pos));
-#ifdef NID_ct_precert_scts
-	assert( X509_get_ext_by_NID(x, NID_ct_precert_scts, -1) == -1 );
-#endif
 
 	x->cert_info->enc.modified = 1;
 	cert_length = i2d_X509_CINF(x->cert_info, &cert_out);
