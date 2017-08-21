@@ -17,6 +17,7 @@
  */
 
 #include "postgres.h"
+#include "plpgsql.h"	/* _PG_init() */
 #include "funcapi.h"
 #include "fmgr.h"
 #include "access/htup_details.h"
@@ -201,6 +202,7 @@ void _PG_init(void)
 /******************************************************************************
  * _PG_fini()                                                                 *
  ******************************************************************************/
+extern void _PG_fini(void);
 void _PG_fini(void)
 {
 	if (g_gostEngine) {
@@ -1225,7 +1227,6 @@ Datum x509_extkeyusages(
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
 		bytea* t_bytea = NULL;
-		text* t_text = NULL;
 		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
@@ -1387,7 +1388,6 @@ Datum x509_certpolicies(
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
 		bytea* t_bytea = NULL;
-		text* t_text = NULL;
 		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
@@ -1876,7 +1876,7 @@ Datum x509_nameattributes(
 					&& (t_x509NameCtx->m_nid != NID_X509))
 				continue;
 
-			text* t_text;
+			text* t_text = NULL;
 			if (PG_GETARG_BOOL(3)) {
 				t_asn1String = X509_NAME_ENTRY_get_data(
 					t_nameEntry
@@ -2080,7 +2080,6 @@ Datum x509_altnames(
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
 		bytea* t_bytea = NULL;
-		text* t_text = NULL;
 		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
@@ -2521,7 +2520,6 @@ Datum x509_crldistributionpoints(
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
 		bytea* t_bytea = NULL;
-		text* t_text = NULL;
 		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
@@ -2633,13 +2631,11 @@ Datum x509_authorityinfoaccess(
 	ACCESS_DESCRIPTION* t_accessDescription;
 	tAuthorityInfoAccessCtx* t_authorityInfoAccessCtx;
 	FuncCallContext* t_funcCtx;
-	text* t_text = NULL;
 
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
 		bytea* t_bytea = NULL;
-		text* t_text = NULL;
 		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
@@ -2985,7 +2981,6 @@ Datum x509_extensions(
 	if (SRF_IS_FIRSTCALL()) {
 		MemoryContext t_oldMemoryCtx;
 		bytea* t_bytea = NULL;
-		text* t_text = NULL;
 		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
