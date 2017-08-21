@@ -638,6 +638,77 @@ label_error:
 	PG_RETURN_NULL();
 }
 
+/******************************************************************************
+ * x509_tbscert_strip_ct_ext()                                                *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_tbscert_strip_ct_ext);
+Datum x509_tbscert_strip_ct_ext(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	bytea* t_bytea = NULL;
+	const unsigned char* t_pointer = NULL;
+	unsigned char *cert_out = NULL;
+	int cert_length;
+	bytea* outbyte = NULL;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509)
+		goto label_error;
+
+#ifdef NID_ct_precert_scts
+	int sct_pos = X509_get_ext_by_NID(t_x509, NID_ct_precert_scts, -1);
+	int poison_pos = X509_get_ext_by_NID(t_x509, NID_ct_precert_poison, -1);
+#else
+	int num_ext = X509_get_ext_count(t_x509);
+	int sct_pos = -1;
+	int poison_pos = -1;
+	for (int k = 0; k < num_ext; ++k) {
+		char oid[256];
+		X509_EXTENSION* ex = X509_get_ext(t_x509, k);
+		ASN1_OBJECT* ext_asn = X509_EXTENSION_get_object(ex);
+		OBJ_obj2txt(oid, 255, ext_asn, 1);
+		if (strcmp(oid, "1.3.6.1.4.1.11129.2.4.2") == 0 && sct_pos == -1) {
+			sct_pos = k;
+		}
+		else if (strcmp(oid, "1.3.6.1.4.1.11129.2.4.3") == 0 && poison_pos == -1) {
+			poison_pos = k;
+		}
+		else if (sct_pos > -1 && poison_pos > -1) {
+			break; // found both positions
+		}
+	}
+#endif
+	// delete {sct,poison} extensions if either exists
+	if (sct_pos > -1) {
+		X509_EXTENSION_free(X509_delete_ext(t_x509, sct_pos));
+	}
+	if (poison_pos > -1) {
+		X509_EXTENSION_free(X509_delete_ext(t_x509, poison_pos));
+	}
+
+	t_x509->cert_info->enc.modified = 1;
+	cert_length = i2d_X509_CINF(t_x509->cert_info, &cert_out);
+	outbyte = palloc(VARHDRSZ + cert_length);
+	SET_VARSIZE(outbyte, VARHDRSZ + cert_length);
+	memcpy(VARDATA(outbyte), cert_out, cert_length);
+	OPENSSL_free(cert_out);
+	X509_free(t_x509);
+
+	PG_RETURN_BYTEA_P(outbyte);
+
+label_error:
+	if (t_x509) {
+		X509_free(t_x509);
+	}
+
+	PG_RETURN_NULL();
+}
 
 /******************************************************************************
  * x509_publickey()                                                           *
@@ -2643,7 +2714,7 @@ Datum x509_authorityinfoaccess(
 
 			if (t_accessDescription->location->type != GEN_URI)
 				continue;
-			
+
 			(void)ASN1_STRING_to_UTF8(
 				(unsigned char**)&t_utf8String,
 				t_accessDescription->location->d.ia5

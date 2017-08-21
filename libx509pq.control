@@ -1,0 +1,4 @@
+comment = 'X.509 certificate parsing library for PostgreSQL'
+default_version = '1.0'
+module_pathname = '$libdir/libx509pq'
+relocatable = true
