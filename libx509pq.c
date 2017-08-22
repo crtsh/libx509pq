@@ -696,7 +696,7 @@ Datum x509_publickey(
 	SET_VARSIZE(t_derPublicKey, VARHDRSZ + t_derPublicKey_size);
 
 	t_pointer2 = (unsigned char*)VARDATA(t_derPublicKey);
-	if (!(i2d_PUBKEY(t_publicKey, &t_pointer2)))
+	if (i2d_PUBKEY(t_publicKey, &t_pointer2) < 0)
 		goto label_error;
 
 	EVP_PKEY_free(t_publicKey);
@@ -742,7 +742,7 @@ Datum x509_serialnumber(
 
 	t_asn1Integer = X509_get_serialNumber(t_x509);
 	t_size = i2d_ASN1_INTEGER(t_asn1Integer, NULL);
-	if (t_size > 129)	/* Multiple length octets not supported */
+	if ((t_size < 0) || (t_size > 129))	/* Maximum 1 length octet */
 		PG_RETURN_NULL();
 	t_serialNumber = palloc(VARHDRSZ + t_size - 2);
 	t_pointer = (unsigned char*)t_serialNumber + VARHDRSZ - 2;
@@ -969,7 +969,7 @@ Datum x509_name(
 	SET_VARSIZE(t_derName, VARHDRSZ + t_derName_size);
 
 	t_pointer2 = (unsigned char*)VARDATA(t_derName);
-	if (!(i2d_X509_NAME(t_x509Name, &t_pointer2)))
+	if (i2d_X509_NAME(t_x509Name, &t_pointer2) < 0)
 		goto label_error;
 
 	X509_free(t_x509);
