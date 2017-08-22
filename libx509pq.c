@@ -3021,6 +3021,7 @@ Datum x509_hasextension(
 				VARSIZE(t_bytea) - VARHDRSZ)) == NULL)
 		PG_RETURN_NULL();
 
+	/* NUL-terminate the OID string */
 	if ((t_extnTxt = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1)) == NULL)
 		goto label_done;
 	strncpy(t_extnTxt, VARDATA(t_text), VARSIZE(t_text) - VARHDRSZ);
@@ -3028,12 +3029,7 @@ Datum x509_hasextension(
 		goto label_done;
 
 	t_bResultIsNULL = FALSE;
-	for (int i = 0; i < X509_get_ext_count(t_x509); i++)
-		if (OBJ_cmp(X509_EXTENSION_get_object(X509_get_ext(t_x509, i)),
-							t_extnObj) == 0) {
-			t_bResult = TRUE;
-			break;
-		}
+	t_bResult = (X509_get_ext_by_OBJ(t_x509, t_extnObj, -1) != -1);
 
 label_done:
 	if (t_extnObj)
