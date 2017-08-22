@@ -167,6 +167,8 @@ static char g_error[] = "ERROR!";
 
 static ENGINE* g_gostEngine = NULL;
 
+static int g_nid_scts = NID_undef;
+static int g_nid_poison = NID_undef;
 
 
 /******************************************************************************
@@ -196,6 +198,23 @@ void _PG_init(void)
 	g_gostEngine = ENGINE_by_id("gost");
 	if (g_gostEngine && ENGINE_init(g_gostEngine))
 		ENGINE_set_default(g_gostEngine, ENGINE_METHOD_ALL);
+
+#ifdef NID_ct_precert_scts
+	g_nid_scts = NID_ct_precert_scts;
+#else
+	g_nid_scts = OBJ_create(
+		"1.3.6.1.4.1.11129.2.4.2", "ct_precert_scts",
+		"CT Precertificate SCTs"
+	);
+#endif
+#ifdef NID_ct_poison
+	g_nid_poison = NID_ct_poison;
+#else
+	g_nid_poison = OBJ_create(
+		"1.3.6.1.4.1.11129.2.4.3", "ct_precert_poison",
+		"CT Precertificate Poison"
+	);
+#endif
 }
 
 
@@ -640,77 +659,6 @@ label_error:
 	PG_RETURN_NULL();
 }
 
-/******************************************************************************
- * x509_tbscert_strip_ct_ext()                                                *
- ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_tbscert_strip_ct_ext);
-Datum x509_tbscert_strip_ct_ext(
-	PG_FUNCTION_ARGS
-)
-{
-	X509* t_x509 = NULL;
-	bytea* t_bytea = NULL;
-	const unsigned char* t_pointer = NULL;
-	unsigned char *cert_out = NULL;
-	int cert_length;
-	bytea* outbyte = NULL;
-
-	if (PG_ARGISNULL(0))
-		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
-	if (!t_x509)
-		goto label_error;
-
-#ifdef NID_ct_precert_scts
-	int sct_pos = X509_get_ext_by_NID(t_x509, NID_ct_precert_scts, -1);
-	int poison_pos = X509_get_ext_by_NID(t_x509, NID_ct_precert_poison, -1);
-#else
-	int num_ext = X509_get_ext_count(t_x509);
-	int sct_pos = -1;
-	int poison_pos = -1;
-	for (int k = 0; k < num_ext; ++k) {
-		char oid[256];
-		X509_EXTENSION* ex = X509_get_ext(t_x509, k);
-		ASN1_OBJECT* ext_asn = X509_EXTENSION_get_object(ex);
-		OBJ_obj2txt(oid, 255, ext_asn, 1);
-		if (strcmp(oid, "1.3.6.1.4.1.11129.2.4.2") == 0 && sct_pos == -1) {
-			sct_pos = k;
-		}
-		else if (strcmp(oid, "1.3.6.1.4.1.11129.2.4.3") == 0 && poison_pos == -1) {
-			poison_pos = k;
-		}
-		else if (sct_pos > -1 && poison_pos > -1) {
-			break; // found both positions
-		}
-	}
-#endif
-	// delete {sct,poison} extensions if either exists
-	if (sct_pos > -1) {
-		X509_EXTENSION_free(X509_delete_ext(t_x509, sct_pos));
-	}
-	if (poison_pos > -1) {
-		X509_EXTENSION_free(X509_delete_ext(t_x509, poison_pos));
-	}
-
-	t_x509->cert_info->enc.modified = 1;
-	cert_length = i2d_X509_CINF(t_x509->cert_info, &cert_out);
-	outbyte = palloc(VARHDRSZ + cert_length);
-	SET_VARSIZE(outbyte, VARHDRSZ + cert_length);
-	memcpy(VARDATA(outbyte), cert_out, cert_length);
-	OPENSSL_free(cert_out);
-	X509_free(t_x509);
-
-	PG_RETURN_BYTEA_P(outbyte);
-
-label_error:
-	if (t_x509) {
-		X509_free(t_x509);
-	}
-
-	PG_RETURN_NULL();
-}
 
 /******************************************************************************
  * x509_publickey()                                                           *
@@ -3098,6 +3046,54 @@ label_done:
 		PG_RETURN_NULL();
 	else
 		PG_RETURN_BOOL(t_bResult);
+}
+
+
+/******************************************************************************
+ * x509_tbscert_strip_ct_ext()                                                *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_tbscert_strip_ct_ext);
+Datum x509_tbscert_strip_ct_ext(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	bytea* t_bytea = PG_GETARG_BYTEA_P(0);
+	bytea* t_derTBSCert = NULL;
+	const unsigned char* t_pointer = (unsigned char*)VARDATA(t_bytea);
+	unsigned char* t_pointer2 = NULL;
+	int t_extPos;
+	int t_derTBSCert_size;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+
+	if ((t_x509 = d2i_X509(NULL, &t_pointer,
+				VARSIZE(t_bytea) - VARHDRSZ)) == NULL)
+		PG_RETURN_NULL();
+
+	if ((t_extPos = X509_get_ext_by_NID(t_x509, g_nid_scts, -1)) != -1)
+		X509_EXTENSION_free(X509_delete_ext(t_x509, t_extPos));
+	if ((t_extPos = X509_get_ext_by_NID(t_x509, g_nid_poison, -1)) != -1)
+		X509_EXTENSION_free(X509_delete_ext(t_x509, t_extPos));
+
+	t_x509->cert_info->enc.modified = 1;
+	if ((t_derTBSCert_size = i2d_X509_CINF(t_x509->cert_info, NULL)) < 0)
+		goto label_error;
+	t_derTBSCert = palloc(VARHDRSZ + t_derTBSCert_size);
+	SET_VARSIZE(t_derTBSCert, VARHDRSZ + t_derTBSCert_size);
+	t_pointer2 = (unsigned char*)VARDATA(t_derTBSCert);
+	if (i2d_X509_CINF(t_x509->cert_info, &t_pointer2) < 0)
+		goto label_error;
+
+	X509_free(t_x509);
+
+	PG_RETURN_BYTEA_P(t_derTBSCert);
+
+label_error:
+	X509_free(t_x509);
+
+	PG_RETURN_NULL();
 }
 
 
