@@ -51,6 +51,15 @@ PG_MODULE_MAGIC;
 	#define X509_get0_notAfter		X509_get_notAfter
 	#define X509_get0_notBefore		X509_get_notBefore
 	#define X509_get0_tbs_sigalg(x)		(x)->cert_info->signature
+
+	static int i2d_re_X509_tbs(
+		X509* x,
+		unsigned char** pp
+	)
+	{
+		x->cert_info->enc.modified = 1;
+		return i2d_X509_CINF(x->cert_info, pp);
+	}
 #else						/* >= 1.1.0 */
 	#define SIGNATURE_ALGORITHM		const X509_ALGOR
 	#define SIGNATURE_BIT_STRING		const ASN1_BIT_STRING
@@ -3073,13 +3082,12 @@ Datum x509_tbscert_strip_ct_ext(
 	if ((t_extPos = X509_get_ext_by_NID(t_x509, g_nid_poison, -1)) != -1)
 		X509_EXTENSION_free(X509_delete_ext(t_x509, t_extPos));
 
-	t_x509->cert_info->enc.modified = 1;
-	if ((t_derTBSCert_size = i2d_X509_CINF(t_x509->cert_info, NULL)) < 0)
+	if ((t_derTBSCert_size = i2d_re_X509_tbs(t_x509, NULL)) < 0)
 		goto label_error;
 	t_derTBSCert = palloc(VARHDRSZ + t_derTBSCert_size);
 	SET_VARSIZE(t_derTBSCert, VARHDRSZ + t_derTBSCert_size);
 	t_pointer2 = (unsigned char*)VARDATA(t_derTBSCert);
-	if (i2d_X509_CINF(t_x509->cert_info, &t_pointer2) < 0)
+	if (i2d_re_X509_tbs(t_x509, &t_pointer2) < 0)
 		goto label_error;
 
 	X509_free(t_x509);
