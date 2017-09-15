@@ -51,15 +51,6 @@ PG_MODULE_MAGIC;
 	#define X509_get0_notAfter		X509_get_notAfter
 	#define X509_get0_notBefore		X509_get_notBefore
 	#define X509_get0_tbs_sigalg(x)		(x)->cert_info->signature
-
-	static int i2d_re_X509_tbs(
-		X509* x,
-		unsigned char** pp
-	)
-	{
-		x->cert_info->enc.modified = 1;
-		return i2d_X509_CINF(x->cert_info, pp);
-	}
 #else						/* >= 1.1.0 */
 	#define SIGNATURE_ALGORITHM		const X509_ALGOR
 	#define SIGNATURE_BIT_STRING		const ASN1_BIT_STRING
@@ -69,6 +60,15 @@ PG_MODULE_MAGIC;
 	#define X509_get_signature_nid(x)	(x)->sig_alg->algorithm
 	#define X509_GET_SIGNATURE(psig, x)	(*(psig)) = (x)->signature
 	#define X509_GET_SIGALGNID(palg, x)	(*(palg)) = (x)->sig_alg
+
+	static int i2d_re_X509_tbs(
+		X509* x,
+		unsigned char** pp
+	)
+	{
+		x->cert_info->enc.modified = 1;
+		return i2d_X509_CINF(x->cert_info, pp);
+	}
 #else						/* >= 1.0.2 */
 	#define X509_GET_SIGNATURE(psig, x)	X509_get0_signature(psig, NULL, x)
 	#define X509_GET_SIGALGNID(palg, x)	X509_get0_signature(NULL, palg, x)
