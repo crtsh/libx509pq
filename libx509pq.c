@@ -33,6 +33,7 @@ PG_MODULE_MAGIC;
 
 #include "openssl/asn1.h"
 #include "openssl/asn1t.h"
+#include "openssl/bn.h"
 #include "openssl/engine.h"
 #include "openssl/err.h"
 #include "openssl/evp.h"
@@ -51,6 +52,22 @@ PG_MODULE_MAGIC;
 	#define X509_get0_notAfter		X509_get_notAfter
 	#define X509_get0_notBefore		X509_get_notBefore
 	#define X509_get0_tbs_sigalg(x)		(x)->cert_info->signature
+
+	#define EVP_PKEY_get0_RSA(evp_pkey)	((evp_pkey)->pkey.rsa)
+	static void RSA_get0_key(
+		const RSA* r,
+		const BIGNUM** n,
+		const BIGNUM** e,
+		const BIGNUM** d
+	)
+	{
+		if (n != NULL)
+			*n = r->n;
+		if (e != NULL)
+			*e = r->e;
+		if (d != NULL)
+			*d = r->d;
+	}
 #else						/* >= 1.1.0 */
 	#define SIGNATURE_ALGORITHM		const X509_ALGOR
 	#define SIGNATURE_BIT_STRING		const ASN1_BIT_STRING
@@ -180,6 +197,76 @@ static int g_nid_scts = NID_undef;
 static int g_nid_poison = NID_undef;
 
 
+#define ROCA_PRINTS_LENGTH	38
+static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
+	3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+	73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149,
+	151, 157, 163, 167
+};
+BIGNUM* g_prints[ROCA_PRINTS_LENGTH];
+BIGNUM* g_one = NULL;
+
+/******************************************************************************
+ * rocacheck_init()                                                           *
+ ******************************************************************************/
+static void rocacheck_init()
+{
+	memset(g_prints, '\0', sizeof(BIGNUM*) * ROCA_PRINTS_LENGTH);
+	(void)BN_dec2bn(&g_prints[0], "6");
+	(void)BN_dec2bn(&g_prints[1], "30");
+	(void)BN_dec2bn(&g_prints[2], "126");
+	(void)BN_dec2bn(&g_prints[3], "1026");
+	(void)BN_dec2bn(&g_prints[4], "5658");
+	(void)BN_dec2bn(&g_prints[5], "107286");
+	(void)BN_dec2bn(&g_prints[6], "199410");
+	(void)BN_dec2bn(&g_prints[7], "8388606");
+	(void)BN_dec2bn(&g_prints[8], "536870910");
+	(void)BN_dec2bn(&g_prints[9], "2147483646");
+	(void)BN_dec2bn(&g_prints[10], "67109890");
+	(void)BN_dec2bn(&g_prints[11], "2199023255550");
+	(void)BN_dec2bn(&g_prints[12], "8796093022206");
+	(void)BN_dec2bn(&g_prints[13], "140737488355326");
+	(void)BN_dec2bn(&g_prints[14], "5310023542746834");
+	(void)BN_dec2bn(&g_prints[15], "576460752303423486");
+	(void)BN_dec2bn(&g_prints[16], "1455791217086302986");
+	(void)BN_dec2bn(&g_prints[17], "147573952589676412926");
+	(void)BN_dec2bn(&g_prints[18], "20052041432995567486");
+	(void)BN_dec2bn(&g_prints[19], "6041388139249378920330");
+	(void)BN_dec2bn(&g_prints[20], "207530445072488465666");
+	(void)BN_dec2bn(&g_prints[21], "9671406556917033397649406");
+	(void)BN_dec2bn(&g_prints[22], "618970019642690137449562110");
+	(void)BN_dec2bn(&g_prints[23], "79228162521181866724264247298");
+	(void)BN_dec2bn(&g_prints[24], "2535301200456458802993406410750");
+	(void)BN_dec2bn(&g_prints[25], "1760368345969468176824550810518");
+	(void)BN_dec2bn(&g_prints[26], "50079290986288516948354744811034");
+	(void)BN_dec2bn(&g_prints[27], "473022961816146413042658758988474");
+	(void)BN_dec2bn(&g_prints[28], "10384593717069655257060992658440190");
+	(void)BN_dec2bn(&g_prints[29], "144390480366845522447407333004847678774");
+	(void)BN_dec2bn(&g_prints[30], "2722258935367507707706996859454145691646");
+	(void)BN_dec2bn(&g_prints[31], "174224571863520493293247799005065324265470");
+	(void)BN_dec2bn(&g_prints[32], "696898287454081973172991196020261297061886");
+	(void)BN_dec2bn(&g_prints[33], "713623846352979940529142984724747568191373310");
+	(void)BN_dec2bn(&g_prints[34], "1800793591454480341970779146165214289059119882");
+	(void)BN_dec2bn(&g_prints[35], "126304807362733370595828809000324029340048915994");
+	(void)BN_dec2bn(&g_prints[36], "11692013098647223345629478661730264157247460343806");
+	(void)BN_dec2bn(&g_prints[37], "187072209578355573530071658587684226515959365500926");
+
+	(void)BN_dec2bn(&g_one, "1");
+}
+
+/******************************************************************************
+ * rocacheck_cleanup()                                                        *
+ ******************************************************************************/
+static void rocacheck_cleanup()
+{
+	int i;
+
+	BN_free(g_one);
+	for (i = 0; i < ROCA_PRINTS_LENGTH; i++)
+		BN_free(g_prints[i]);
+}
+
+
 /******************************************************************************
  * _PG_init()                                                                 *
  ******************************************************************************/
@@ -224,6 +311,8 @@ void _PG_init(void)
 		"CT Precertificate Poison"
 	);
 #endif
+
+	rocacheck_init();
 }
 
 
@@ -241,6 +330,8 @@ void _PG_fini(void)
 	EVP_cleanup();
 	OBJ_cleanup();
 	ERR_free_strings();
+
+	rocacheck_cleanup();
 }
 
 
@@ -3098,6 +3189,101 @@ label_error:
 	X509_free(t_x509);
 
 	PG_RETURN_NULL();
+}
+
+
+/******************************************************************************
+ * BN_bitand_is_zero()                                                        *
+ ******************************************************************************/
+int BN_bitand_is_zero(
+	const BIGNUM* a,
+	const BIGNUM* b
+)
+{
+	int i;
+
+	for (i = 0; i < BN_num_bits(a); i++)
+		if (BN_is_bit_set(a, i) && BN_is_bit_set(b, i))
+			return 0;
+
+	return 1;
+}
+
+
+/******************************************************************************
+ * x509_hasrocafingerprint()                                                  *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_hasrocafingerprint);
+Datum x509_hasrocafingerprint(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	EVP_PKEY* t_publicKey = NULL;
+	const BIGNUM* t_modulus = NULL;
+	BN_CTX* t_ctx = NULL;
+	BIGNUM* t_prime = NULL;
+	BIGNUM* t_temp = NULL;
+	BIGNUM* t_result = NULL;
+	bytea* t_bytea = NULL;
+	const unsigned char* t_pointer = NULL;
+	bool t_bResult = FALSE;
+	bool t_bResultIsNULL = TRUE;
+	int i;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509)
+		PG_RETURN_NULL();
+
+	t_publicKey = X509_get_pubkey(t_x509);
+	if ((!t_publicKey) || !((EVP_PKEY_id(t_publicKey) == EVP_PKEY_RSA)
+				|| (EVP_PKEY_id(t_publicKey) == EVP_PKEY_RSA2)))
+		goto label_return;
+
+	RSA_get0_key(EVP_PKEY_get0_RSA(t_publicKey), &t_modulus, NULL, NULL);
+	if (!t_modulus)
+		goto label_return;
+
+	t_ctx = BN_CTX_new();
+	t_prime = BN_new();
+	t_temp = BN_new();
+	t_result = BN_new();
+	for (i = 0; i < ROCA_PRINTS_LENGTH; i++) {
+		BN_set_word(t_prime, g_primes[i]);
+		if (!BN_mod(t_temp, t_modulus, t_prime, t_ctx))
+			goto label_return;
+		if (!BN_lshift(t_temp, g_one, BN_get_word(t_temp)))
+			goto label_return;
+		if (BN_bitand_is_zero(t_temp, g_prints[i])) {
+			t_bResultIsNULL = FALSE;
+			goto label_return;
+		}
+	}
+	t_bResultIsNULL = FALSE;
+	t_bResult = TRUE;
+
+label_return:
+	if (t_result)
+		BN_free(t_result);
+	if (t_temp)
+		BN_free(t_temp);
+	if (t_prime)
+		BN_free(t_prime);
+	if (t_ctx)
+		BN_CTX_free(t_ctx);
+	if (t_publicKey)
+		EVP_PKEY_free(t_publicKey);
+	if (t_x509)
+		X509_free(t_x509);
+
+	if (t_bResultIsNULL)
+		PG_RETURN_NULL();
+	else
+		PG_RETURN_BOOL(t_bResult);
 }
 
 
