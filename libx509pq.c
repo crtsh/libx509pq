@@ -197,11 +197,9 @@ static int g_nid_scts = NID_undef;
 static int g_nid_poison = NID_undef;
 
 
-#define ROCA_PRINTS_LENGTH	38
+#define ROCA_PRINTS_LENGTH	17
 static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
-	3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
-	73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149,
-	151, 157, 163, 167
+	11, 13, 17, 19, 37, 53, 61, 71, 73, 79, 97, 103, 107, 109, 127, 151, 157
 };
 BIGNUM* g_prints[ROCA_PRINTS_LENGTH];
 BIGNUM* g_one = NULL;
@@ -212,44 +210,23 @@ BIGNUM* g_one = NULL;
 static void rocacheck_init()
 {
 	memset(g_prints, '\0', sizeof(BIGNUM*) * ROCA_PRINTS_LENGTH);
-	(void)BN_dec2bn(&g_prints[0], "6");
-	(void)BN_dec2bn(&g_prints[1], "30");
-	(void)BN_dec2bn(&g_prints[2], "126");
-	(void)BN_dec2bn(&g_prints[3], "1026");
-	(void)BN_dec2bn(&g_prints[4], "5658");
-	(void)BN_dec2bn(&g_prints[5], "107286");
-	(void)BN_dec2bn(&g_prints[6], "199410");
-	(void)BN_dec2bn(&g_prints[7], "8388606");
-	(void)BN_dec2bn(&g_prints[8], "536870910");
-	(void)BN_dec2bn(&g_prints[9], "2147483646");
-	(void)BN_dec2bn(&g_prints[10], "67109890");
-	(void)BN_dec2bn(&g_prints[11], "2199023255550");
-	(void)BN_dec2bn(&g_prints[12], "8796093022206");
-	(void)BN_dec2bn(&g_prints[13], "140737488355326");
-	(void)BN_dec2bn(&g_prints[14], "5310023542746834");
-	(void)BN_dec2bn(&g_prints[15], "576460752303423486");
-	(void)BN_dec2bn(&g_prints[16], "1455791217086302986");
-	(void)BN_dec2bn(&g_prints[17], "147573952589676412926");
-	(void)BN_dec2bn(&g_prints[18], "20052041432995567486");
-	(void)BN_dec2bn(&g_prints[19], "6041388139249378920330");
-	(void)BN_dec2bn(&g_prints[20], "207530445072488465666");
-	(void)BN_dec2bn(&g_prints[21], "9671406556917033397649406");
-	(void)BN_dec2bn(&g_prints[22], "618970019642690137449562110");
-	(void)BN_dec2bn(&g_prints[23], "79228162521181866724264247298");
-	(void)BN_dec2bn(&g_prints[24], "2535301200456458802993406410750");
-	(void)BN_dec2bn(&g_prints[25], "1760368345969468176824550810518");
-	(void)BN_dec2bn(&g_prints[26], "50079290986288516948354744811034");
-	(void)BN_dec2bn(&g_prints[27], "473022961816146413042658758988474");
-	(void)BN_dec2bn(&g_prints[28], "10384593717069655257060992658440190");
-	(void)BN_dec2bn(&g_prints[29], "144390480366845522447407333004847678774");
-	(void)BN_dec2bn(&g_prints[30], "2722258935367507707706996859454145691646");
-	(void)BN_dec2bn(&g_prints[31], "174224571863520493293247799005065324265470");
-	(void)BN_dec2bn(&g_prints[32], "696898287454081973172991196020261297061886");
-	(void)BN_dec2bn(&g_prints[33], "713623846352979940529142984724747568191373310");
-	(void)BN_dec2bn(&g_prints[34], "1800793591454480341970779146165214289059119882");
-	(void)BN_dec2bn(&g_prints[35], "126304807362733370595828809000324029340048915994");
-	(void)BN_dec2bn(&g_prints[36], "11692013098647223345629478661730264157247460343806");
-	(void)BN_dec2bn(&g_prints[37], "187072209578355573530071658587684226515959365500926");
+	(void)BN_dec2bn(&g_prints[0], "1026");
+	(void)BN_dec2bn(&g_prints[1], "5658");
+	(void)BN_dec2bn(&g_prints[2], "107286");
+	(void)BN_dec2bn(&g_prints[3], "199410");
+	(void)BN_dec2bn(&g_prints[4], "67109890");
+	(void)BN_dec2bn(&g_prints[5], "5310023542746834");
+	(void)BN_dec2bn(&g_prints[6], "1455791217086302986");
+	(void)BN_dec2bn(&g_prints[7], "20052041432995567486");
+	(void)BN_dec2bn(&g_prints[8], "6041388139249378920330");
+	(void)BN_dec2bn(&g_prints[9], "207530445072488465666");
+	(void)BN_dec2bn(&g_prints[10], "79228162521181866724264247298");
+	(void)BN_dec2bn(&g_prints[11], "1760368345969468176824550810518");
+	(void)BN_dec2bn(&g_prints[12], "50079290986288516948354744811034");
+	(void)BN_dec2bn(&g_prints[13], "473022961816146413042658758988474");
+	(void)BN_dec2bn(&g_prints[14], "144390480366845522447407333004847678774");
+	(void)BN_dec2bn(&g_prints[15], "1800793591454480341970779146165214289059119882");
+	(void)BN_dec2bn(&g_prints[16], "126304807362733370595828809000324029340048915994");
 
 	(void)BN_dec2bn(&g_one, "1");
 }
@@ -3195,7 +3172,7 @@ label_error:
 /******************************************************************************
  * BN_bitand_is_zero()                                                        *
  ******************************************************************************/
-int BN_bitand_is_zero(
+static int BN_bitand_is_zero(
 	const BIGNUM* a,
 	const BIGNUM* b
 )
