@@ -2046,6 +2046,8 @@ Datum x509_nameattributes_raw(
 			int t_length = ASN1_STRING_to_UTF8(
 				(unsigned char**)&t_utf8String, t_asn1String
 			);
+			if ((t_length < 0) || (t_utf8String == NULL))
+				continue;	/* Ignore unsupported attribute types */
 
 			char t_oid_numerical[80] = "";
 			OBJ_obj2txt(t_oid_numerical, sizeof(t_oid_numerical),
@@ -2474,7 +2476,7 @@ Datum x509_altnames_raw(
 				);
 			}
 
-			if (t_utf8String) {
+			if ((t_length >= 0) && t_utf8String) {
 				bytea* t_rawValue = palloc(t_length + VARHDRSZ);
 				SET_VARSIZE(t_rawValue, t_length + VARHDRSZ);
 				memcpy((void*)VARDATA(t_rawValue), t_utf8String,
