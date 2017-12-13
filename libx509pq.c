@@ -38,6 +38,7 @@ PG_MODULE_MAGIC;
 #include "openssl/err.h"
 #include "openssl/evp.h"
 #include "openssl/objects.h"
+#include "openssl/ocsp.h"
 #include "openssl/x509.h"
 #include "openssl/x509v3.h"
 
@@ -3263,6 +3264,61 @@ label_return:
 		PG_RETURN_NULL();
 	else
 		PG_RETURN_BOOL(t_bResult);
+}
+
+
+/******************************************************************************
+ * ocspresponse_print()                                                       *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(ocspresponse_print);
+Datum ocspresponse_print(
+	PG_FUNCTION_ARGS
+)
+{
+	OCSP_RESPONSE* t_ocspResponse = NULL;
+	bytea* t_bytea = NULL;
+	text* t_text = NULL;
+	const unsigned char* t_pointer = NULL;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_ocspResponse = d2i_OCSP_RESPONSE(
+		NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+	);
+	if (!t_ocspResponse) {
+		t_text = palloc(strlen(g_error) + VARHDRSZ);
+		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
+		memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+	}
+	else {
+		/* Create a memory BIO and tell it to make sure that it clears
+		  up all its memory when we close it later */
+		char* t_string = NULL;
+		BIO* t_bio = BIO_new(BIO_s_mem());
+		(void)BIO_set_close(t_bio, BIO_CLOSE);
+
+		/* "Print" the OCSP response */
+		(void)OCSP_RESPONSE_print(
+			t_bio, t_ocspResponse,
+			PG_ARGISNULL(1) ? 0 : PG_GETARG_INT32(2)
+		);
+
+		/* Get a pointer to the string and its size */
+		int t_size = BIO_get_mem_data(t_bio, &t_string);
+
+		/* Copy the string to the return parameter */
+		t_text = palloc(t_size + VARHDRSZ);
+		SET_VARSIZE(t_text, t_size + VARHDRSZ);
+		memcpy((void*)VARDATA(t_text), t_string, t_size);
+
+		/* Free stuff */
+		BIO_free(t_bio);
+		OCSP_RESPONSE_free(t_ocspResponse);
+	}
+
+	PG_RETURN_TEXT_P(t_text);
 }
 
 
