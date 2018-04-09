@@ -1302,8 +1302,8 @@ Datum x509_extkeyusages(
 			text* t_text = palloc(MAX_OIDSTRING_LENGTH + VARHDRSZ);
 
 			(void)OBJ_obj2txt(
-				VARDATA(t_text), MAX_OIDSTRING_LENGTH, t_ekuOID,
-				1
+				VARDATA(t_text), MAX_OIDSTRING_LENGTH, t_ekuOID, 
+				PG_GETARG_BOOL(1) ? 1 : 0
 			);
 
 			SET_VARSIZE(t_text, strlen(VARDATA(t_text)) + VARHDRSZ);
