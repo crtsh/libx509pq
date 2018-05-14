@@ -793,6 +793,56 @@ label_error:
 
 
 /******************************************************************************
+ * x509_rsamodulus()                                                          *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_rsamodulus);
+Datum x509_rsamodulus(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	EVP_PKEY* t_publicKey = NULL;
+	const BIGNUM* t_modulus = NULL;
+	bytea* t_bytea = NULL;
+	bytea* t_derModulus = NULL;
+	const unsigned char* t_pointer = NULL;
+	int t_derModulus_size;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509)
+		goto label_error;
+
+	t_publicKey = X509_get_pubkey(t_x509);
+	if (!t_publicKey || (EVP_PKEY_id(t_publicKey) != EVP_PKEY_RSA))
+		goto label_error;
+
+	RSA_get0_key(EVP_PKEY_get0_RSA(t_publicKey), &t_modulus, NULL, NULL);
+	t_derModulus_size = BN_num_bytes(t_modulus);
+	t_derModulus = palloc(VARHDRSZ + t_derModulus_size);
+	SET_VARSIZE(t_derModulus, VARHDRSZ + t_derModulus_size);
+	if (BN_bn2bin(t_modulus, VARDATA(t_derModulus)) != t_derModulus_size)
+		goto label_error;
+
+	EVP_PKEY_free(t_publicKey);
+	X509_free(t_x509);
+
+	PG_RETURN_BYTEA_P(t_derModulus);
+
+label_error:
+	if (t_publicKey)
+		EVP_PKEY_free(t_publicKey);
+	if (t_x509)
+		X509_free(t_x509);
+
+	PG_RETURN_NULL();
+}
+
+
+/******************************************************************************
  * x509_serialnumber()                                                        *
  ******************************************************************************/
 PG_FUNCTION_INFO_V1(x509_serialnumber);
