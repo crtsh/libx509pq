@@ -824,7 +824,7 @@ Datum x509_rsamodulus(
 	t_derModulus_size = BN_num_bytes(t_modulus);
 	t_derModulus = palloc(VARHDRSZ + t_derModulus_size);
 	SET_VARSIZE(t_derModulus, VARHDRSZ + t_derModulus_size);
-	if (BN_bn2bin(t_modulus, VARDATA(t_derModulus)) != t_derModulus_size)
+	if (BN_bn2bin(t_modulus, (unsigned char*)VARDATA(t_derModulus)) != t_derModulus_size)
 		goto label_error;
 
 	EVP_PKEY_free(t_publicKey);
