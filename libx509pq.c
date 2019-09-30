@@ -1281,6 +1281,53 @@ Datum x509_subjectkeyidentifier(
 }
 
 
+/******************************************************************************
+ * x509_authoritykeyid()                                                      *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_authoritykeyid);
+Datum x509_authoritykeyid(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	AUTHORITY_KEYID* t_authorityKeyIdentifier;
+	bytea* t_bytea = NULL;
+	bytea* t_keyid = NULL;
+	unsigned char* t_pointer = NULL;
+	int t_size;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(
+		NULL, (const unsigned char**)&t_pointer,
+		VARSIZE(t_bytea) - VARHDRSZ
+	);
+	if (!t_x509)
+		PG_RETURN_NULL();
+
+	t_authorityKeyIdentifier = X509_get_ext_d2i(
+		t_x509, NID_authority_key_identifier, NULL, NULL
+	);
+	if (!t_authorityKeyIdentifier || !t_authorityKeyIdentifier->keyid) {
+		X509_free(t_x509);
+		PG_RETURN_NULL();
+	}
+
+	t_size = ASN1_STRING_length(t_authorityKeyIdentifier->keyid);
+	t_keyid = palloc(VARHDRSZ + t_size);
+	t_pointer = (unsigned char*)t_keyid + VARHDRSZ;
+	memcpy(t_pointer, ASN1_STRING_get0_data(t_authorityKeyIdentifier->keyid), t_size);
+	SET_VARSIZE(t_keyid, VARHDRSZ + t_size);
+
+	AUTHORITY_KEYID_free(t_authorityKeyIdentifier);
+	X509_free(t_x509);
+
+	PG_RETURN_BYTEA_P(t_keyid);
+}
+
+
 typedef struct tExtKeyUsageCtx_st{
 	EXTENDED_KEY_USAGE* m_extKeyUsages;
 	int m_index;
