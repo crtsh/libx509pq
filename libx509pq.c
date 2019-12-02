@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "c.h"
 #include "postgres.h"
 #include "plpgsql.h"	/* _PG_init() */
 #include "funcapi.h"
@@ -1432,7 +1433,7 @@ Datum x509_isekupermitted(
 	char* t_ekuOID = NULL;
 	char t_ekuOID2[MAX_OIDSTRING_LENGTH];
 	int l_indexNo;
-	bool t_bResult = FALSE;
+	bool t_bResult = false;
 
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
@@ -1448,7 +1449,7 @@ Datum x509_isekupermitted(
 				VARSIZE(t_text) - VARHDRSZ
 			);
 			if (!strcmp(t_ekuOID, "2.5.29.37.0")) {
-				t_bResult = TRUE;
+				t_bResult = true;
 				goto label_done;
 			}
 
@@ -1456,7 +1457,7 @@ Datum x509_isekupermitted(
 				t_x509, NID_ext_key_usage, NULL, NULL
 			);
 			if (!t_extendedKeyUsage) {
-				t_bResult = TRUE;
+				t_bResult = true;
 				goto label_done;
 			}
 			for (l_indexNo = 0; l_indexNo < sk_ASN1_OBJECT_num(
@@ -1472,7 +1473,7 @@ Datum x509_isekupermitted(
 				if ((!strcmp(t_ekuOID, t_ekuOID2))
 						|| (!strcmp(t_ekuOID2,
 							"2.5.29.37.0"))) {
-					t_bResult = TRUE;
+					t_bResult = true;
 					break;
 				}
 			}
@@ -1594,7 +1595,7 @@ Datum x509_ispolicypermitted(
 	char* t_policyOID = NULL;
 	char t_policyOID2[MAX_OIDSTRING_LENGTH];
 	int l_indexNo;
-	bool t_bResult = FALSE;
+	bool t_bResult = false;
 
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
@@ -1610,7 +1611,7 @@ Datum x509_ispolicypermitted(
 				VARSIZE(t_text) - VARHDRSZ
 			);
 			if (!strcmp(t_policyOID, "2.5.29.32.0")) {
-				t_bResult = TRUE;
+				t_bResult = true;
 				goto label_done;
 			}
 
@@ -1618,7 +1619,7 @@ Datum x509_ispolicypermitted(
 				t_x509, NID_certificate_policies, NULL, NULL
 			);
 			if (!t_certificatePolicies) {
-				t_bResult = TRUE;
+				t_bResult = true;
 				goto label_done;
 			}
 			for (l_indexNo = 0; l_indexNo < sk_POLICYINFO_num(
@@ -1636,7 +1637,7 @@ Datum x509_ispolicypermitted(
 				if ((!strcmp(t_policyOID, t_policyOID2))
 						|| (!strcmp(t_policyOID2,
 							"2.5.29.32.0"))) {
-					t_bResult = TRUE;
+					t_bResult = true;
 					break;
 				}
 			}
@@ -1672,7 +1673,7 @@ Datum x509_canissuecerts(
 	unsigned long t_keyUsageBits;
 	unsigned long t_subjTypeBits;
 	int t_pos = -1;
-	bool t_bResult = FALSE;
+	bool t_bResult = false;
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
@@ -1696,7 +1697,7 @@ Datum x509_canissuecerts(
 		);
 		if (t_basicConstraints) {
 			if (t_basicConstraints->ca)
-				t_bResult = TRUE;
+				t_bResult = true;
 			BASIC_CONSTRAINTS_free(t_basicConstraints);
 			if (t_bResult)
 				goto label_checkKeyUsage;
@@ -1728,7 +1729,7 @@ Datum x509_canissuecerts(
 			BASIC_CONSTRAINTS_OLD_free(t_bCold);
 
 			if (t_subjTypeBits & CERT_CA_SUBJECT_FLAG) {
-				t_bResult = TRUE;
+				t_bResult = true;
 				goto label_checkKeyUsage;
 			}
 			else
@@ -1743,7 +1744,7 @@ Datum x509_canissuecerts(
 		if (t_signature->length == 256)
 			if (!memcmp(g_rootSGCAuthority_sig, t_signature->data,
 					256)) {
-				t_bResult = TRUE;
+				t_bResult = true;
 				goto label_checkKeyUsage;
 			}
 
@@ -1767,7 +1768,7 @@ Datum x509_canissuecerts(
 			ASN1_BIT_STRING_free(t_keyUsage);
 
 			if (!(t_keyUsageBits & KU_KEY_CERT_SIGN))
-				t_bResult = FALSE;
+				t_bResult = false;
 		}
 
 	label_done:
@@ -2099,7 +2100,7 @@ Datum x509_nameattributes_raw(
 
 		t_funcCtx->tuple_desc = BlessTupleDesc(t_tupleDesc);
 		t_nameAttributesRawCtx->m_nulls = (bool*)palloc((t_tupleDesc->natts) * sizeof(bool));
-		memset(t_nameAttributesRawCtx->m_nulls, TRUE, (t_tupleDesc->natts) * sizeof(bool));
+		memset(t_nameAttributesRawCtx->m_nulls, true, (t_tupleDesc->natts) * sizeof(bool));
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
@@ -2154,14 +2155,14 @@ Datum x509_nameattributes_raw(
 			SET_VARSIZE(t_oidText, strlen(t_oid_numerical) + VARHDRSZ);
 			memcpy((void*)VARDATA(t_oidText), t_oid_numerical, strlen(t_oid_numerical));
 			t_datum[0] = PointerGetDatum(t_oidText);
-			t_nameAttributesRawCtx->m_nulls[0] = FALSE;
+			t_nameAttributesRawCtx->m_nulls[0] = false;
 
 			bytea* t_rawValue = palloc(t_length + VARHDRSZ);
 			SET_VARSIZE(t_rawValue, t_length + VARHDRSZ);
 			memcpy((void*)VARDATA(t_rawValue), t_utf8String, t_length);
 			OPENSSL_free(t_utf8String);
 			t_datum[1] = PointerGetDatum(t_rawValue);
-			t_nameAttributesRawCtx->m_nulls[1] = FALSE;
+			t_nameAttributesRawCtx->m_nulls[1] = false;
 
 			Datum t_compositeDatum;
 			HeapTuple t_heapTuple = heap_form_tuple(
@@ -2466,7 +2467,7 @@ Datum x509_altnames_raw(
 
 		t_funcCtx->tuple_desc = BlessTupleDesc(t_tupleDesc);
 		t_altNamesRawCtx->m_nulls = (bool*)palloc((t_tupleDesc->natts) * sizeof(bool));
-		memset(t_altNamesRawCtx->m_nulls, TRUE, (t_tupleDesc->natts) * sizeof(bool));
+		memset(t_altNamesRawCtx->m_nulls, true, (t_tupleDesc->natts) * sizeof(bool));
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
@@ -2583,9 +2584,9 @@ Datum x509_altnames_raw(
 
 				Datum t_datum[3];
 				t_datum[0] = Int32GetDatum(t_generalName->type);
-				t_altNamesRawCtx->m_nulls[0] = FALSE;
+				t_altNamesRawCtx->m_nulls[0] = false;
 				t_datum[1] = PointerGetDatum(t_rawValue);
-				t_altNamesRawCtx->m_nulls[1] = FALSE;
+				t_altNamesRawCtx->m_nulls[1] = false;
 
 				if (t_oid) {
 					char t_oid_numerical[80] = "";
@@ -2594,10 +2595,10 @@ Datum x509_altnames_raw(
 					SET_VARSIZE(t_oidText, strlen(t_oid_numerical) + VARHDRSZ);
 					memcpy((void*)VARDATA(t_oidText), t_oid_numerical, strlen(t_oid_numerical));
 					t_datum[2] = PointerGetDatum(t_oidText);
-					t_altNamesRawCtx->m_nulls[2] = FALSE;
+					t_altNamesRawCtx->m_nulls[2] = false;
 				}
 				else
-					t_altNamesRawCtx->m_nulls[2] = TRUE;
+					t_altNamesRawCtx->m_nulls[2] = true;
 
 				Datum t_compositeDatum;
 				HeapTuple t_heapTuple = heap_form_tuple(
@@ -2940,7 +2941,7 @@ Datum x509_verify(
 	EVP_PKEY* t_publicKey = NULL;
 	bytea* t_bytea = NULL;
 	const unsigned char* t_pointer = NULL;
-	bool t_bResult = FALSE;
+	bool t_bResult = false;
 
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
@@ -2955,7 +2956,7 @@ Datum x509_verify(
 		);
 		if (t_publicKey) {
 			if (X509_verify(t_x509, t_publicKey) == 1)
-				t_bResult = TRUE;
+				t_bResult = true;
 			EVP_PKEY_free(t_publicKey);
 		}
 		X509_free(t_x509);
@@ -2981,7 +2982,7 @@ Datum x509_anynameswithnuls(
 	bytea* t_bytea = NULL;
 	const unsigned char* t_pointer = NULL;
 	int l_indexNo;
-	bool t_bResult = FALSE;
+	bool t_bResult = false;
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
@@ -3003,7 +3004,7 @@ Datum x509_anynameswithnuls(
 			);
 			if (t_utf8String) {
 				if (t_length != strlen(t_utf8String))
-					t_bResult = TRUE;
+					t_bResult = true;
 				OPENSSL_free(t_utf8String);
 			}
 		}
@@ -3021,7 +3022,7 @@ Datum x509_anynameswithnuls(
 			);
 			if (t_utf8String) {
 				if (t_length != strlen(t_utf8String))
-					t_bResult = TRUE;
+					t_bResult = true;
 				OPENSSL_free(t_utf8String);
 			}
 		}
@@ -3044,7 +3045,7 @@ Datum x509_anynameswithnuls(
 				);
 				if (t_utf8String) {
 					if (t_length != strlen(t_utf8String))
-						t_bResult = TRUE;
+						t_bResult = true;
 					OPENSSL_free(t_utf8String);
 				}
 			}
@@ -3069,7 +3070,7 @@ Datum x509_anynameswithnuls(
 				);
 				if (t_utf8String) {
 					if (t_length != strlen(t_utf8String))
-						t_bResult = TRUE;
+						t_bResult = true;
 					OPENSSL_free(t_utf8String);
 				}
 			}
@@ -3188,8 +3189,8 @@ Datum x509_hasextension(
 	text* t_text = PG_GETARG_TEXT_P(1);
 	const unsigned char* t_pointer = (unsigned char*)VARDATA(t_bytea);
 	char* t_extnTxt = NULL;
-	bool t_bResultIsNULL = TRUE;
-	bool t_bResult = FALSE;
+	bool t_bResultIsNULL = true;
+	bool t_bResult = false;
 
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
@@ -3205,7 +3206,7 @@ Datum x509_hasextension(
 	if ((t_extnObj = OBJ_txt2obj(t_extnTxt, 0)) == NULL)
 		goto label_done;
 
-	t_bResultIsNULL = FALSE;
+	t_bResultIsNULL = false;
 	t_bResult = (X509_get_ext_by_OBJ(t_x509, t_extnObj, -1) != -1);
 
 label_done:
@@ -3304,8 +3305,8 @@ Datum x509_hasrocafingerprint(
 	BIGNUM* t_result = NULL;
 	bytea* t_bytea = NULL;
 	const unsigned char* t_pointer = NULL;
-	bool t_bResult = FALSE;
-	bool t_bResultIsNULL = TRUE;
+	bool t_bResult = false;
+	bool t_bResultIsNULL = true;
 	int i;
 
 	if (PG_ARGISNULL(0))
@@ -3336,12 +3337,12 @@ Datum x509_hasrocafingerprint(
 		if (!BN_lshift(t_temp, g_one, BN_get_word(t_temp)))
 			goto label_return;
 		if (BN_bitand_is_zero(t_temp, g_prints[i])) {
-			t_bResultIsNULL = FALSE;
+			t_bResultIsNULL = false;
 			goto label_return;
 		}
 	}
-	t_bResultIsNULL = FALSE;
-	t_bResult = TRUE;
+	t_bResultIsNULL = false;
+	t_bResult = true;
 
 label_return:
 	if (t_result)
