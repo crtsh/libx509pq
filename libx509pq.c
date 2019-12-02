@@ -3189,7 +3189,6 @@ Datum x509_hasextension(
 	text* t_text = PG_GETARG_TEXT_P(1);
 	const unsigned char* t_pointer = (unsigned char*)VARDATA(t_bytea);
 	char* t_extnTxt = NULL;
-	bool t_bResultIsNULL = true;
 	bool t_bResult = false;
 
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
@@ -3206,8 +3205,14 @@ Datum x509_hasextension(
 	if ((t_extnObj = OBJ_txt2obj(t_extnTxt, 0)) == NULL)
 		goto label_done;
 
-	t_bResultIsNULL = false;
-	t_bResult = (X509_get_ext_by_OBJ(t_x509, t_extnObj, -1) != -1);
+	int t_index = X509_get_ext_by_OBJ(t_x509, t_extnObj, -1);
+	t_bResult = (t_index != -1);
+	if (t_bResult && (!PG_ARGISNULL(2))) {
+		t_bResult = (
+			PG_GETARG_BOOL(2)
+				== X509_EXTENSION_get_critical(X509_get_ext(t_x509, t_index))
+		);
+	}
 
 label_done:
 	if (t_extnObj)
@@ -3216,10 +3221,7 @@ label_done:
 		free(t_extnTxt);
 	X509_free(t_x509);
 
-	if (t_bResultIsNULL)
-		PG_RETURN_NULL();
-	else
-		PG_RETURN_BOOL(t_bResult);
+	PG_RETURN_BOOL(t_bResult);
 }
 
 
