@@ -28,6 +28,7 @@
 PG_MODULE_MAGIC;
 #endif
 
+#include <stdbool.h>
 #include <string.h>
 #include <time.h>
 
@@ -44,6 +45,13 @@ PG_MODULE_MAGIC;
 
 #define MAX_OIDSTRING_LENGTH   80
 
+#ifndef FALSE
+#define FALSE   0
+#endif
+
+#ifndef TRUE
+#define TRUE    1
+#endif
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L	/* < 1.1.0 */
 	#define ASN1_STRING_get0_data		ASN1_STRING_data
