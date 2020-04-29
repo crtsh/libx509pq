@@ -195,9 +195,6 @@ static char g_error[] = "ERROR!";
 
 static ENGINE* g_gostEngine = NULL;
 
-static int g_nid_scts = NID_undef;
-static int g_nid_poison = NID_undef;
-
 
 #define ROCA_PRINTS_LENGTH	17
 static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
@@ -273,23 +270,6 @@ void _PG_init(void)
 	g_gostEngine = ENGINE_by_id("gost");
 	if (g_gostEngine && ENGINE_init(g_gostEngine))
 		ENGINE_set_default(g_gostEngine, ENGINE_METHOD_ALL);
-
-#ifdef NID_ct_precert_scts
-	g_nid_scts = NID_ct_precert_scts;
-#else
-	g_nid_scts = OBJ_create(
-		"1.3.6.1.4.1.11129.2.4.2", "ct_precert_scts",
-		"CT Precertificate SCTs"
-	);
-#endif
-#ifdef NID_ct_poison
-	g_nid_poison = NID_ct_poison;
-#else
-	g_nid_poison = OBJ_create(
-		"1.3.6.1.4.1.11129.2.4.3", "ct_precert_poison",
-		"CT Precertificate Poison"
-	);
-#endif
 
 	rocacheck_init();
 }
@@ -3248,9 +3228,9 @@ Datum x509_tbscert_strip_ct_ext(
 				VARSIZE(t_bytea) - VARHDRSZ)) == NULL)
 		PG_RETURN_NULL();
 
-	if ((t_extPos = X509_get_ext_by_NID(t_x509, g_nid_scts, -1)) != -1)
+	if ((t_extPos = X509_get_ext_by_NID(t_x509, NID_ct_precert_scts, -1)) != -1)
 		X509_EXTENSION_free(X509_delete_ext(t_x509, t_extPos));
-	if ((t_extPos = X509_get_ext_by_NID(t_x509, g_nid_poison, -1)) != -1)
+	if ((t_extPos = X509_get_ext_by_NID(t_x509, NID_ct_precert_poison, -1)) != -1)
 		X509_EXTENSION_free(X509_delete_ext(t_x509, t_extPos));
 
 	if ((t_derTBSCert_size = i2d_re_X509_tbs(t_x509, NULL)) < 0)
