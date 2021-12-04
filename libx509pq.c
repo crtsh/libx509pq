@@ -201,7 +201,6 @@ static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
 	11, 13, 17, 19, 37, 53, 61, 71, 73, 79, 97, 103, 107, 109, 127, 151, 157
 };
 BIGNUM* g_prints[ROCA_PRINTS_LENGTH];
-BIGNUM* g_one = NULL;
 
 /******************************************************************************
  * rocacheck_init()                                                           *
@@ -226,8 +225,6 @@ static void rocacheck_init()
 	(void)BN_dec2bn(&g_prints[14], "144390480366845522447407333004847678774");
 	(void)BN_dec2bn(&g_prints[15], "1800793591454480341970779146165214289059119882");
 	(void)BN_dec2bn(&g_prints[16], "126304807362733370595828809000324029340048915994");
-
-	(void)BN_dec2bn(&g_one, "1");
 }
 
 /******************************************************************************
@@ -236,8 +233,6 @@ static void rocacheck_init()
 static void rocacheck_cleanup()
 {
 	int i;
-
-	BN_free(g_one);
 	for (i = 0; i < ROCA_PRINTS_LENGTH; i++)
 		BN_free(g_prints[i]);
 }
@@ -3281,10 +3276,10 @@ Datum x509_hasrocafingerprint(
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
 	const BIGNUM* t_modulus = NULL;
-	BN_CTX* t_ctx = NULL;
-	BIGNUM* t_prime = NULL;
-	BIGNUM* t_temp = NULL;
-	BIGNUM* t_result = NULL;
+	BN_CTX* t_ctx = BN_CTX_new();
+	BN_CTX_start(t_ctx);
+	BIGNUM* t_prime = BN_CTX_get(t_ctx);
+	BIGNUM* t_temp = BN_CTX_get(t_ctx);
 	bytea* t_bytea = NULL;
 	const unsigned char* t_pointer = NULL;
 	bool t_bResult = false;
@@ -3308,15 +3303,11 @@ Datum x509_hasrocafingerprint(
 	if (!t_modulus)
 		goto label_return;
 
-	t_ctx = BN_CTX_new();
-	t_prime = BN_new();
-	t_temp = BN_new();
-	t_result = BN_new();
 	for (i = 0; i < ROCA_PRINTS_LENGTH; i++) {
 		BN_set_word(t_prime, g_primes[i]);
 		if (!BN_mod(t_temp, t_modulus, t_prime, t_ctx))
 			goto label_return;
-		if (!BN_lshift(t_temp, g_one, BN_get_word(t_temp)))
+		if (!BN_lshift(t_temp, BN_value_one(), BN_get_word(t_temp)))
 			goto label_return;
 		if (BN_bitand_is_zero(t_temp, g_prints[i])) {
 			t_bResultIsNULL = false;
@@ -3327,14 +3318,9 @@ Datum x509_hasrocafingerprint(
 	t_bResult = true;
 
 label_return:
-	if (t_result)
-		BN_free(t_result);
-	if (t_temp)
-		BN_free(t_temp);
-	if (t_prime)
-		BN_free(t_prime);
-	if (t_ctx)
-		BN_CTX_free(t_ctx);
+	BN_CTX_end(t_ctx);
+	BN_CTX_free(t_ctx);
+
 	if (t_publicKey)
 		EVP_PKEY_free(t_publicKey);
 	if (t_x509)
