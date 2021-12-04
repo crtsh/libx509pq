@@ -3334,6 +3334,180 @@ label_return:
 
 
 /******************************************************************************
+ * BN_isqrt()                                                                 *
+ *   The OpenSSL BN library doesn't have a sqrt or isqrt function.  This      *
+ * function is adapted from BoringSSL's BN_sqrt.                              *
+ ******************************************************************************/
+int BN_isqrt(
+	BIGNUM *out_sqrt,
+	const BIGNUM *in,
+	BN_CTX *ctx
+)
+{
+	BIGNUM *estimate, *tmp, *delta, *last_delta, *tmp2;
+	int ok = 0, last_delta_valid = 0;
+
+	if (BN_is_negative(in)) {
+		return 0;
+	}
+	if (BN_is_zero(in)) {
+		BN_zero(out_sqrt);
+		return 1;
+	}
+
+	BN_CTX_start(ctx);
+	if (out_sqrt == in) {
+		estimate = BN_CTX_get(ctx);
+	} else {
+		estimate = out_sqrt;
+	}
+	tmp = BN_CTX_get(ctx);
+	last_delta = BN_CTX_get(ctx);
+	delta = BN_CTX_get(ctx);
+	if (estimate == NULL || tmp == NULL || last_delta == NULL || delta == NULL) {
+		goto err;
+	}
+
+	// We estimate that the square root of an n-bit number is 2^{n/2}.
+	if (!BN_lshift(estimate, BN_value_one(), BN_num_bits(in)/2)) {
+		goto err;
+	}
+
+	// This is Newton's method for finding a root of the equation |estimate|^2 -
+	// |in| = 0.
+	for (;;) {
+		// |estimate| = 1/2 * (|estimate| + |in|/|estimate|)
+		if (!BN_div(tmp, NULL, in, estimate, ctx) ||
+				!BN_add(tmp, tmp, estimate) ||
+				!BN_rshift1(estimate, tmp) ||
+				// |tmp| = |estimate|^2
+				!BN_sqr(tmp, estimate, ctx) ||
+				// |delta| = |in| - |tmp|
+				!BN_sub(delta, in, tmp)) {
+			goto err;
+		}
+
+		BN_set_negative(delta, 0);
+		// The difference between |in| and |estimate| squared is required to always
+		// decrease. This ensures that the loop always terminates, but I don't have
+		// a proof that it always finds the square root for a given square.
+		if (last_delta_valid && BN_cmp(delta, last_delta) >= 0) {
+			break;
+		}
+
+		last_delta_valid = 1;
+
+		tmp2 = last_delta;
+		last_delta = delta;
+		delta = tmp2;
+	}
+
+	ok = 1;
+
+err:
+	if (ok && out_sqrt == in && !BN_copy(out_sqrt, estimate)) {
+		ok = 0;
+	}
+	BN_CTX_end(ctx);
+	return ok;
+}
+
+
+/******************************************************************************
+ * BN_is_square()                                                             *
+ ******************************************************************************/
+int BN_is_square(
+	const BIGNUM* bn,
+	BN_CTX *ctx
+)
+{
+	BN_CTX_start(ctx);
+	BIGNUM* tmp = BN_CTX_get(ctx);
+	int t_result = 0;
+
+	if (!BN_isqrt(tmp, bn, ctx) || !BN_sqr(tmp, tmp, ctx))
+		goto label_return;
+
+	if (!BN_cmp(bn, tmp))
+		t_result = 1;
+
+label_return:
+	BN_CTX_end(ctx);
+	return t_result;
+}
+
+
+/******************************************************************************
+ * x509_hasrocafingerprint()                                                  *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_hascloseprimes);
+Datum x509_hascloseprimes(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	EVP_PKEY* t_publicKey = NULL;
+	const BIGNUM* t_modulus = NULL;
+	BN_CTX* t_ctx = BN_CTX_new();
+	BN_CTX_start(t_ctx);
+	BIGNUM* a = BN_CTX_get(t_ctx);
+	BIGNUM* a_squared_minus_n = BN_CTX_get(t_ctx);
+	bytea* t_bytea = NULL;
+	const unsigned char* t_pointer = NULL;
+	bool t_bResult = false;
+	bool t_bResultIsNULL = true;
+	int i;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509)
+		PG_RETURN_NULL();
+
+	t_publicKey = X509_get_pubkey(t_x509);
+	if ((!t_publicKey) || !((EVP_PKEY_id(t_publicKey) == EVP_PKEY_RSA)
+				|| (EVP_PKEY_id(t_publicKey) == EVP_PKEY_RSA2)))
+		goto label_return;
+
+	RSA_get0_key(EVP_PKEY_get0_RSA(t_publicKey), &t_modulus, NULL, NULL);
+	if (!t_modulus)
+		goto label_return;
+
+	if (BN_is_square(t_modulus, t_ctx) == 1			// Modulus is a perfect square.
+			|| !BN_isqrt(a, t_modulus, t_ctx))	// Error.
+		goto label_return;
+
+	for (i = 0; i < PG_GETARG_INT16(1); i++, BN_add(a, a, BN_value_one())) {
+		if (!BN_sqr(a_squared_minus_n, a, t_ctx) || !BN_sub(a_squared_minus_n, a_squared_minus_n, t_modulus))
+			goto label_return;			// Error.
+		if (BN_is_square(a_squared_minus_n, t_ctx) == 1) {
+			t_bResult = true;			// Factored.
+			t_bResultIsNULL = false;
+			goto label_return;
+		}
+	}
+
+	t_bResultIsNULL = false;				// Not factored.
+
+label_return:
+	BN_CTX_end(t_ctx);
+	BN_CTX_free(t_ctx);
+
+	if (t_publicKey)
+		EVP_PKEY_free(t_publicKey);
+	if (t_x509)
+		X509_free(t_x509);
+
+	if (t_bResultIsNULL)
+		PG_RETURN_NULL();
+	else
+		PG_RETURN_BOOL(t_bResult);
+}
+
+
+/******************************************************************************
  * ocspresponse_print()                                                       *
  ******************************************************************************/
 PG_FUNCTION_INFO_V1(ocspresponse_print);
