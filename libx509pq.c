@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+
+
 #include "c.h"
 #include "postgres.h"
 #include "plpgsql.h"	/* _PG_init() */
@@ -27,6 +29,52 @@
 
 #ifdef PG_MODULE_MAGIC
 PG_MODULE_MAGIC;
+#endif
+
+
+#ifdef _WIN32
+#define timegm _mkgmtime
+
+PGDLLEXPORT Datum x509_altnames(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_altnames_raw(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_anynameswithnuls(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_authorityinfoaccess(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_authoritykeyid(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_canissuecerts(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_certpolicies(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_commonname(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_crldistributionpoints(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_extensions(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_extkeyusages(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_getpathlenconstraint(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_hasextension(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_hasrocafingerprint(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_isekupermitted(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_ispolicypermitted(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_issuername(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_keyalgorithm(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_keysize(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_name(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_name_print(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_nameattributes(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_nameattributes_raw(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_notafter(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_notbefore(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_print(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_publickey(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_publickeymd5(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_rsamodulus(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_serialnumber(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_signaturehashalgorithm(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_signaturekeyalgorithm(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_subjectkeyidentifier(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_subjectname(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_tbscert_strip_ct_ext(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509_verify(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum x509pq_opensslversion(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum ocspresponse_print(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum urldecode(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum urlencode(PG_FUNCTION_ARGS);
 #endif
 
 #include <string.h>
