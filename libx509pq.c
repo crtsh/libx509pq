@@ -3879,3 +3879,63 @@ Datum x509_printkeyusage(
 
 	PG_RETURN_TEXT_P(t_text);
 }
+
+/******************************************************************************
+ * X509_hasextension_critical()                                                
+ * Returns 'true' if extension found and is critical, 'false' if found and
+ * not critical, and 'NULL' if not found
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_hasextension_critical);
+Datum x509_hasextension_critical(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	ASN1_OBJECT* t_extnObj = NULL;
+	X509_EXTENSION* t_x509Ext = NULL;
+	bytea* t_bytea = PG_GETARG_BYTEA_P(0);
+	text* t_text = PG_GETARG_TEXT_P(1);
+	const unsigned char* t_pointer = (unsigned char*)VARDATA(t_bytea);
+	char* t_extnTxt = NULL;
+	int t_iCritical = -1;
+	int t_iExtIdx = -2;
+
+	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
+		PG_RETURN_NULL();
+
+	if ((t_x509 = d2i_X509(NULL, &t_pointer,
+				VARSIZE(t_bytea) - VARHDRSZ)) == NULL)
+		PG_RETURN_NULL();
+
+	/* NUL-terminate the OID string */
+	if ((t_extnTxt = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1)) == NULL)
+		goto label_done;
+	strncpy(t_extnTxt, VARDATA(t_text), VARSIZE(t_text) - VARHDRSZ);
+	if ((t_extnObj = OBJ_txt2obj(t_extnTxt, 0)) == NULL)
+		goto label_done;
+	if ((t_iExtIdx = X509_get_ext_by_OBJ(t_x509, t_extnObj, -1)) < 0)
+		goto label_done;
+	
+	t_iCritical = X509_EXTENSION_get_critical(X509_get_ext(t_x509, t_iExtIdx));
+
+label_done:
+	if (t_extnObj)
+		ASN1_OBJECT_free(t_extnObj);
+	if (t_extnTxt)
+		free(t_extnTxt);
+		
+	X509_free(t_x509);
+
+	switch (t_iCritical) {
+		
+		case 1:
+			PG_RETURN_BOOL(true);
+			break;
+		case 0:
+			PG_RETURN_BOOL(false);
+			break;
+		default:
+			PG_RETURN_NULL();
+			
+	}
+}
