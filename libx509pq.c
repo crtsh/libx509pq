@@ -3709,3 +3709,233 @@ Datum x509pq_opensslversion(
 	memcpy((void*)VARDATA(t_text), SSLeay_version(SSLEAY_VERSION), t_len);
 	PG_RETURN_TEXT_P(t_text);
 }
+
+/******************************************************************************
+ * x509_version()
+ *	This function returns the X509 version of the certificate 
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_version);
+Datum x509_version(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	bytea* t_bytea = NULL;
+	int t_iResult;
+	const unsigned char* t_pointer = NULL;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509)
+		PG_RETURN_NULL();
+
+	t_iResult = X509_get_version(t_x509);
+
+	X509_free(t_x509);
+
+	if (!t_iResult)
+		PG_RETURN_NULL();
+
+	PG_RETURN_INT32(t_iResult+1);
+}
+
+/******************************************************************************
+ * x509_bcca()  
+ * This function returns if the certificate contains the basic contraints extension with a value of CA = true
+ * true = BC extension exists, CA is true
+ * false = BC extension exists, CA is false
+ * NULL = BC extension doesn't exist
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_bcca);
+Datum x509_bcca(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	bytea* t_bytea = NULL;
+	BASIC_CONSTRAINTS* t_basicConstraints;
+	const unsigned char* t_pointer = NULL;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509)
+		PG_RETURN_NULL();
+
+	t_basicConstraints = X509_get_ext_d2i(
+		t_x509, NID_basic_constraints, NULL, NULL
+	);
+
+	X509_free(t_x509);
+	
+	if(!t_basicConstraints)
+		PG_RETURN_NULL();
+
+	PG_RETURN_BOOL(t_basicConstraints->ca);
+	
+}
+
+/******************************************************************************
+ * x509_keyusage()                                                       *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_keyusage);
+Datum x509_keyusage(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	ASN1_BIT_STRING* t_keyUsage;
+	bytea* t_bytea = NULL;
+	const unsigned char* t_pointer = NULL;
+	unsigned long t_keyUsageBits;
+	
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (t_x509) {
+	
+		t_keyUsage = X509_get_ext_d2i(
+			t_x509, NID_key_usage, NULL, NULL
+		);
+		if (t_keyUsage) {
+			if (t_keyUsage->length > 0) {
+				t_keyUsageBits = t_keyUsage->data[0];
+				if (t_keyUsage->length > 1)
+					t_keyUsageBits |=
+						t_keyUsage->data[1] << 8;
+			}
+			else
+				t_keyUsageBits = 0;
+			ASN1_BIT_STRING_free(t_keyUsage);
+
+		}
+
+	label_done:
+		X509_free(t_x509);
+	}
+
+	PG_RETURN_INT32(t_keyUsageBits);
+}
+
+/******************************************************************************
+ * x509_printkeyusage()                                                       *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_printkeyusage);
+Datum x509_printkeyusage(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	X509_EXTENSION* t_extension;
+	BIO* t_bio;
+	bytea* t_bytea = NULL;
+	text* t_text = NULL;
+	const unsigned char* t_pointer = NULL;
+	char* t_string = NULL;
+	long t_size;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+	t_bytea = PG_GETARG_BYTEA_P(0);
+	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	if (!t_x509) {
+		t_text = palloc(strlen(g_error) + VARHDRSZ);
+		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
+		memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+	}
+	else {
+		/* Create a memory BIO and tell it to make sure that it clears
+		  up all its memory when we close it later */
+		t_bio = BIO_new(BIO_s_mem());
+		(void)BIO_set_close(t_bio, BIO_CLOSE);
+
+		t_extension = X509_get_ext(t_x509, X509_get_ext_by_NID(t_x509, NID_key_usage, -1));
+
+		(void)X509V3_EXT_print(
+			t_bio, t_extension, NULL, NULL
+		);
+
+		/* Get a pointer to the Issuer Name string and its size */
+		t_size = BIO_get_mem_data(t_bio, &t_string);
+
+		/* Copy the Issuer Name string to the return parameter */
+		t_text = palloc(t_size + VARHDRSZ);
+		SET_VARSIZE(t_text, t_size + VARHDRSZ);
+		memcpy((void*)VARDATA(t_text), t_string, t_size);
+
+		/* Free stuff */
+		BIO_free(t_bio);
+		X509_free(t_x509);
+	}
+
+	PG_RETURN_TEXT_P(t_text);
+}
+
+/******************************************************************************
+ * X509_hasextension_critical()                                                
+ * Returns 'true' if extension found and is critical, 'false' if found and
+ * not critical, and 'NULL' if not found
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_hasextension_critical);
+Datum x509_hasextension_critical(
+	PG_FUNCTION_ARGS
+)
+{
+	X509* t_x509 = NULL;
+	ASN1_OBJECT* t_extnObj = NULL;
+	X509_EXTENSION* t_x509Ext = NULL;
+	bytea* t_bytea = PG_GETARG_BYTEA_P(0);
+	text* t_text = PG_GETARG_TEXT_P(1);
+	const unsigned char* t_pointer = (unsigned char*)VARDATA(t_bytea);
+	char* t_extnTxt = NULL;
+	int t_iCritical = -1;
+	int t_iExtIdx = -2;
+
+	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
+		PG_RETURN_NULL();
+
+	if ((t_x509 = d2i_X509(NULL, &t_pointer,
+				VARSIZE(t_bytea) - VARHDRSZ)) == NULL)
+		PG_RETURN_NULL();
+
+	/* NUL-terminate the OID string */
+	if ((t_extnTxt = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1)) == NULL)
+		goto label_done;
+	strncpy(t_extnTxt, VARDATA(t_text), VARSIZE(t_text) - VARHDRSZ);
+	if ((t_extnObj = OBJ_txt2obj(t_extnTxt, 0)) == NULL)
+		goto label_done;
+	if ((t_iExtIdx = X509_get_ext_by_OBJ(t_x509, t_extnObj, -1)) < 0)
+		goto label_done;
+	
+	t_iCritical = X509_EXTENSION_get_critical(X509_get_ext(t_x509, t_iExtIdx));
+
+label_done:
+	if (t_extnObj)
+		ASN1_OBJECT_free(t_extnObj);
+	if (t_extnTxt)
+		free(t_extnTxt);
+		
+	X509_free(t_x509);
+
+	switch (t_iCritical) {
+		
+		case 1:
+			PG_RETURN_BOOL(true);
+			break;
+		case 0:
+			PG_RETURN_BOOL(false);
+			break;
+		default:
+			PG_RETURN_NULL();
+			
+	}
+}
