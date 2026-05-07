@@ -3338,7 +3338,7 @@ label_return:
  *   The OpenSSL BN library doesn't have a sqrt or isqrt function.  This      *
  * function is adapted from BoringSSL's BN_sqrt.                              *
  ******************************************************************************/
-int BN_isqrt(
+static int BN_isqrt(
 	BIGNUM *out_sqrt,
 	const BIGNUM *in,
 	BN_CTX *ctx
@@ -3416,7 +3416,7 @@ err:
 /******************************************************************************
  * BN_is_square()                                                             *
  ******************************************************************************/
-int BN_is_square(
+static int BN_is_square(
 	const BIGNUM* bn,
 	BN_CTX *ctx
 )
