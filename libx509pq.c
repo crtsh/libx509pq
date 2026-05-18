@@ -447,9 +447,9 @@ Datum x509_issuername(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509) {
 		t_text = palloc(strlen(g_error) + VARHDRSZ);
 		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
@@ -506,9 +506,9 @@ Datum x509_keyalgorithm(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		goto label_error;
 
@@ -577,9 +577,9 @@ Datum x509_keysize(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (t_x509) {
 		t_publicKey = X509_get_pubkey(t_x509);
 		if (t_publicKey) {
@@ -610,9 +610,9 @@ Datum x509_notafter(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -646,9 +646,9 @@ Datum x509_notbefore(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -681,9 +681,9 @@ Datum x509_publickeymd5(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		goto label_error;
 
@@ -732,9 +732,9 @@ Datum x509_publickey(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		goto label_error;
 
@@ -786,9 +786,9 @@ Datum x509_rsamodulus(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		goto label_error;
 
@@ -835,11 +835,11 @@ Datum x509_serialnumber(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 	t_x509 = d2i_X509(
 		NULL, (const unsigned char**)&t_pointer,
-		VARSIZE(t_bytea) - VARHDRSZ
+		VARSIZE_ANY_EXHDR(t_bytea)
 	);
 	if (!t_x509)
 		PG_RETURN_NULL();
@@ -884,9 +884,9 @@ Datum x509_signaturehashalgorithm(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		goto label_return;
 
@@ -941,9 +941,9 @@ Datum x509_signaturekeyalgorithm(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		goto label_return;
 
@@ -994,9 +994,9 @@ Datum x509_subjectname(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509) {
 		t_text = palloc(strlen(g_error) + VARHDRSZ);
 		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
@@ -1054,9 +1054,9 @@ Datum x509_name(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		goto label_error;
 
@@ -1106,9 +1106,9 @@ Datum x509_name_print(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509Name = d2i_X509_NAME(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509Name = d2i_X509_NAME(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509Name) {
 		t_text = palloc(strlen(g_error) + VARHDRSZ);
 		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
@@ -1166,9 +1166,9 @@ Datum x509_commonname(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509) {
 		t_text = palloc(strlen(g_error) + VARHDRSZ);
 		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
@@ -1227,11 +1227,11 @@ Datum x509_subjectkeyidentifier(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 	t_x509 = d2i_X509(
 		NULL, (const unsigned char**)&t_pointer,
-		VARSIZE(t_bytea) - VARHDRSZ
+		VARSIZE_ANY_EXHDR(t_bytea)
 	);
 	if (!t_x509)
 		PG_RETURN_NULL();
@@ -1274,11 +1274,11 @@ Datum x509_authoritykeyid(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 	t_x509 = d2i_X509(
 		NULL, (const unsigned char**)&t_pointer,
-		VARSIZE(t_bytea) - VARHDRSZ
+		VARSIZE_ANY_EXHDR(t_bytea)
 	);
 	if (!t_x509)
 		PG_RETURN_NULL();
@@ -1344,10 +1344,10 @@ Datum x509_extkeyusages(
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_P(0);
-			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_bytea = PG_GETARG_BYTEA_PP(0);
+			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 			);
 		}
 		if (t_x509) {
@@ -1412,9 +1412,9 @@ Datum x509_isekupermitted(
 
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (t_x509) {
 		t_text = PG_GETARG_TEXT_P(1);
 		t_ekuOID = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1);
@@ -1505,10 +1505,10 @@ Datum x509_certpolicies(
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_P(0);
-			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_bytea = PG_GETARG_BYTEA_PP(0);
+			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 			);
 		}
 		if (t_x509) {
@@ -1574,9 +1574,9 @@ Datum x509_ispolicypermitted(
 
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (t_x509) {
 		t_text = PG_GETARG_TEXT_P(1);
 		t_policyOID = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1);
@@ -1652,9 +1652,9 @@ Datum x509_canissuecerts(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (t_x509) {
 		if (X509_get_version(t_x509) < 2) {
 			/* Assume that self-signed v1/v2 certificates may issue,
@@ -1775,9 +1775,9 @@ Datum x509_getpathlenconstraint(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_INT32(-2);
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (t_x509) {
 		/* Any X509v1 or X509v2 certificate can issue certs without a
 		  path length constraint */
@@ -1909,10 +1909,10 @@ Datum x509_nameattributes(
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_P(0);
-			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_bytea = PG_GETARG_BYTEA_PP(0);
+			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 			t_x509NameCtx->m_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 			);
 		}
 		if (t_x509NameCtx->m_x509) {
@@ -2079,10 +2079,10 @@ Datum x509_nameattributes_raw(
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_P(0);
-			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_bytea = PG_GETARG_BYTEA_PP(0);
+			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 			t_nameAttributesRawCtx->m_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 			);
 		}
 		if (t_nameAttributesRawCtx->m_x509) {
@@ -2199,10 +2199,10 @@ Datum x509_altnames(
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_P(0);
-			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_bytea = PG_GETARG_BYTEA_PP(0);
+			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 			);
 		}
 		if (t_x509) {
@@ -2446,10 +2446,10 @@ Datum x509_altnames_raw(
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_P(0);
-			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_bytea = PG_GETARG_BYTEA_PP(0);
+			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 			);
 		}
 		if (t_x509) {
@@ -2640,10 +2640,10 @@ Datum x509_crldistributionpoints(
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_P(0);
-			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_bytea = PG_GETARG_BYTEA_PP(0);
+			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 			);
 		}
 		if (t_x509) {
@@ -2756,10 +2756,10 @@ Datum x509_authorityinfoaccess(
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_P(0);
-			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_bytea = PG_GETARG_BYTEA_PP(0);
+			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 			);
 		}
 		if (t_x509) {
@@ -2856,9 +2856,9 @@ Datum x509_print(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509) {
 		t_text = palloc(strlen(g_error) + VARHDRSZ);
 		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
@@ -2920,14 +2920,14 @@ Datum x509_verify(
 
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (t_x509) {
-		t_bytea = PG_GETARG_BYTEA_P(1);
-		t_pointer = (unsigned char*)VARDATA(t_bytea);
+		t_bytea = PG_GETARG_BYTEA_PP(1);
+		t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 		t_publicKey = d2i_PUBKEY(
-			NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+			NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 		);
 		if (t_publicKey) {
 			if (X509_verify(t_x509, t_publicKey) == 1)
@@ -2961,9 +2961,9 @@ Datum x509_anynameswithnuls(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -3100,10 +3100,10 @@ Datum x509_extensions(
 
 		/* One-time setup code */
 		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_P(0);
-			t_pointer = (unsigned char*)VARDATA(t_bytea);
+			t_bytea = PG_GETARG_BYTEA_PP(0);
+			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 			t_extensionsCtx->m_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 			);
 		}
 		if (t_extensionsCtx->m_x509) {
@@ -3160,9 +3160,9 @@ Datum x509_hasextension(
 {
 	X509* t_x509 = NULL;
 	ASN1_OBJECT* t_extnObj = NULL;
-	bytea* t_bytea = PG_GETARG_BYTEA_P(0);
+	bytea* t_bytea = PG_GETARG_BYTEA_PP(0);
 	text* t_text = PG_GETARG_TEXT_P(1);
-	const unsigned char* t_pointer = (unsigned char*)VARDATA(t_bytea);
+	const unsigned char* t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 	char* t_extnTxt = NULL;
 	bool t_bResult = false;
 
@@ -3170,7 +3170,7 @@ Datum x509_hasextension(
 		PG_RETURN_NULL();
 
 	if ((t_x509 = d2i_X509(NULL, &t_pointer,
-				VARSIZE(t_bytea) - VARHDRSZ)) == NULL)
+				VARSIZE_ANY_EXHDR(t_bytea))) == NULL)
 		PG_RETURN_NULL();
 
 	/* NUL-terminate the OID string */
@@ -3209,9 +3209,9 @@ Datum x509_tbscert_strip_ct_ext(
 )
 {
 	X509* t_x509 = NULL;
-	bytea* t_bytea = PG_GETARG_BYTEA_P(0);
+	bytea* t_bytea = PG_GETARG_BYTEA_PP(0);
 	bytea* t_derTBSCert = NULL;
-	const unsigned char* t_pointer = (unsigned char*)VARDATA(t_bytea);
+	const unsigned char* t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 	unsigned char* t_pointer2 = NULL;
 	int t_extPos;
 	int t_derTBSCert_size;
@@ -3220,7 +3220,7 @@ Datum x509_tbscert_strip_ct_ext(
 		PG_RETURN_NULL();
 
 	if ((t_x509 = d2i_X509(NULL, &t_pointer,
-				VARSIZE(t_bytea) - VARHDRSZ)) == NULL)
+				VARSIZE_ANY_EXHDR(t_bytea))) == NULL)
 		PG_RETURN_NULL();
 
 	if ((t_extPos = X509_get_ext_by_NID(t_x509, NID_ct_precert_scts, -1)) != -1)
@@ -3288,9 +3288,9 @@ Datum x509_hasrocafingerprint(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -3460,9 +3460,9 @@ Datum x509_hascloseprimes(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -3522,10 +3522,10 @@ Datum ocspresponse_print(
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_P(0);
-	t_pointer = (unsigned char*)VARDATA(t_bytea);
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 	t_ocspResponse = d2i_OCSP_RESPONSE(
-		NULL, &t_pointer, VARSIZE(t_bytea) - VARHDRSZ
+		NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 	);
 	if (!t_ocspResponse) {
 		t_text = palloc(strlen(g_error) + VARHDRSZ);
