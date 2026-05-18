@@ -198,7 +198,7 @@ static ENGINE* g_gostEngine = NULL;
 
 /* Allocate a PostgreSQL text* and copy "len" bytes from "src" into it. */
 static inline text* text_from_cstring_len(
-	const char* src,
+	const void* src,
 	size_t len
 )
 {
@@ -206,6 +206,18 @@ static inline text* text_from_cstring_len(
 	SET_VARSIZE(t_text, len + VARHDRSZ);
 	memcpy((void*)VARDATA(t_text), src, len);
 	return t_text;
+}
+
+/* Allocate a PostgreSQL bytea* and copy "len" bytes from "src" into it. */
+static inline bytea* bytea_from_buffer(
+	const void* src,
+	size_t len
+)
+{
+	bytea* t_bytea = palloc(len + VARHDRSZ);
+	SET_VARSIZE(t_bytea, len + VARHDRSZ);
+	memcpy((void*)VARDATA(t_bytea), src, len);
+	return t_bytea;
 }
 
 /* Build a PostgreSQL text* from the contents of a memory BIO, then free
@@ -3300,32 +3312,6 @@ Datum ocspresponse_print(
 
 
 /******************************************************************************
- * Helpers used by x509_basic_info().                                         *
- ******************************************************************************/
-static text* mk_text_n(
-	const void* s,
-	int n
-)
-{
-	text* t = (text*)palloc(n + VARHDRSZ);
-	SET_VARSIZE(t, n + VARHDRSZ);
-	memcpy(VARDATA(t), s, n);
-	return t;
-}
-
-static bytea* mk_bytea_n(
-	const void* s,
-	int n
-)
-{
-	bytea* b = (bytea*)palloc(n + VARHDRSZ);
-	SET_VARSIZE(b, n + VARHDRSZ);
-	memcpy(VARDATA(b), s, n);
-	return b;
-}
-
-
-/******************************************************************************
  * x509_basic_info()                                                          *
  *   Parse the certificate once and return all the cheap-to-extract fields    *
  *   as a single composite row.  Equivalent to calling the individual         *
@@ -3384,7 +3370,7 @@ Datum x509_basic_info(
 		);
 		n = BIO_get_mem_data(t_bio, &s);
 		if (n >= 0) {
-			t_values[0] = PointerGetDatum(mk_text_n(s, n));
+			t_values[0] = PointerGetDatum(text_from_cstring_len(s, n));
 			t_nulls[0] = false;
 		}
 	}
@@ -3402,7 +3388,7 @@ Datum x509_basic_info(
 		);
 		n = BIO_get_mem_data(t_bio, &s);
 		if (n >= 0) {
-			t_values[1] = PointerGetDatum(mk_text_n(s, n));
+			t_values[1] = PointerGetDatum(text_from_cstring_len(s, n));
 			t_nulls[1] = false;
 		}
 	}
@@ -3422,7 +3408,7 @@ Datum x509_basic_info(
 			int t_len = ASN1_STRING_to_UTF8(&t_utf8, t_as);
 			if ((t_len >= 0) && t_utf8) {
 				t_values[2] = PointerGetDatum(
-					mk_text_n(t_utf8, t_len)
+					text_from_cstring_len(t_utf8, t_len)
 				);
 				t_nulls[2] = false;
 				OPENSSL_free(t_utf8);
@@ -3485,7 +3471,7 @@ Datum x509_basic_info(
 					break;
 			}
 			if (t_kname) {
-				t_values[6] = PointerGetDatum(mk_text_n(
+				t_values[6] = PointerGetDatum(text_from_cstring_len(
 					t_kname, strlen(t_kname)
 				));
 				t_nulls[6] = false;
@@ -3516,7 +3502,7 @@ Datum x509_basic_info(
 					const char* s =
 						g_hashAlgorithms[l_algNo].m_name;
 					t_values[8] = PointerGetDatum(
-						mk_text_n(s, strlen(s))
+						text_from_cstring_len(s, strlen(s))
 					);
 					t_nulls[8] = false;
 					break;
@@ -3530,7 +3516,7 @@ Datum x509_basic_info(
 					const char* s =
 						g_pkeyAlgorithms[l_algNo].m_name;
 					t_values[9] = PointerGetDatum(
-						mk_text_n(s, strlen(s))
+						text_from_cstring_len(s, strlen(s))
 					);
 					t_nulls[9] = false;
 					break;
@@ -3545,7 +3531,7 @@ Datum x509_basic_info(
 		);
 		if (t_ski) {
 			int t_sz = ASN1_STRING_length(t_ski);
-			t_values[10] = PointerGetDatum(mk_bytea_n(
+			t_values[10] = PointerGetDatum(bytea_from_buffer(
 				ASN1_STRING_get0_data(t_ski), t_sz
 			));
 			t_nulls[10] = false;
@@ -3561,7 +3547,7 @@ Datum x509_basic_info(
 		if (t_aki) {
 			if (t_aki->keyid) {
 				int t_sz = ASN1_STRING_length(t_aki->keyid);
-				t_values[11] = PointerGetDatum(mk_bytea_n(
+				t_values[11] = PointerGetDatum(bytea_from_buffer(
 					ASN1_STRING_get0_data(t_aki->keyid),
 					t_sz
 				));
