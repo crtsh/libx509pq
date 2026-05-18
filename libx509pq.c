@@ -196,6 +196,48 @@ static char g_error[] = "ERROR!";
 static ENGINE* g_gostEngine = NULL;
 
 
+/* Allocate a PostgreSQL text* and copy "len" bytes from "src" into it. */
+static inline text* text_from_cstring_len(
+	const char* src,
+	size_t len
+)
+{
+	text* t_text = palloc(len + VARHDRSZ);
+	SET_VARSIZE(t_text, len + VARHDRSZ);
+	memcpy((void*)VARDATA(t_text), src, len);
+	return t_text;
+}
+
+/* Build a PostgreSQL text* from the contents of a memory BIO, then free
+  the BIO. */
+static inline text* text_from_bio(
+	BIO* t_bio
+)
+{
+	char* t_string = NULL;
+	long t_size = BIO_get_mem_data(t_bio, &t_string);
+	text* t_text = text_from_cstring_len(t_string, t_size);
+	BIO_free(t_bio);
+	return t_text;
+}
+
+/* Decode the bytea function argument at index "argno" into an X509*.
+  Returns NULL from the surrounding function if the argument is SQL NULL.
+  Sets the supplied X509** to NULL if decoding fails. */
+#define X509_FROM_BYTEA_ARG(x509_out, argno)                            \
+	do {                                                            \
+		bytea* _b;                                              \
+		const unsigned char* _p;                                \
+		if (PG_ARGISNULL(argno))                                \
+			PG_RETURN_NULL();                               \
+		_b = PG_GETARG_BYTEA_PP(argno);                         \
+		_p = (const unsigned char*)VARDATA_ANY(_b);             \
+		(x509_out) = d2i_X509(                                  \
+			NULL, &_p, VARSIZE_ANY_EXHDR(_b)                \
+		);                                                      \
+	} while (0)
+
+
 #define ROCA_PRINTS_LENGTH	17
 static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
 	11, 13, 17, 19, 37, 53, 61, 71, 73, 79, 97, 103, 107, 109, 127, 151, 157
@@ -439,21 +481,11 @@ Datum x509_issuername(
 {
 	X509* t_x509 = NULL;
 	BIO* t_bio;
-	bytea* t_bytea = NULL;
 	text* t_text = NULL;
-	const unsigned char* t_pointer = NULL;
-	char* t_string = NULL;
-	long t_size;
 
-	if (PG_ARGISNULL(0))
-		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509) {
-		t_text = palloc(strlen(g_error) + VARHDRSZ);
-		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+		t_text = text_from_cstring_len(g_error, strlen(g_error));
 	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
@@ -472,16 +504,9 @@ Datum x509_issuername(
 					: PG_GETARG_INT32(1)
 		);
 
-		/* Get a pointer to the Issuer Name string and its size */
-		t_size = BIO_get_mem_data(t_bio, &t_string);
+		/* Build the return text from the BIO contents */
+		t_text = text_from_bio(t_bio);
 
-		/* Copy the Issuer Name string to the return parameter */
-		t_text = palloc(t_size + VARHDRSZ);
-		SET_VARSIZE(t_text, t_size + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), t_string, t_size);
-
-		/* Free stuff */
-		BIO_free(t_bio);
 		X509_free(t_x509);
 	}
 
@@ -499,14 +524,10 @@ Datum x509_keyalgorithm(
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
-	bytea* t_bytea = NULL;
 	text* t_text = NULL;
-	const unsigned char* t_pointer = NULL;
 	char* t_string = NULL;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		goto label_error;
 
@@ -538,16 +559,12 @@ Datum x509_keyalgorithm(
 			goto label_error;
 	}
 
-	t_text = palloc(strlen(t_string) + VARHDRSZ);
-	SET_VARSIZE(t_text, strlen(t_string) + VARHDRSZ);
-	memcpy((void*)VARDATA(t_text), t_string, strlen(t_string));
+	t_text = text_from_cstring_len(t_string, strlen(t_string));
 
 	goto label_return;
 
 label_error:
-	t_text = palloc(strlen(g_error) + VARHDRSZ);
-	SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
-	memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+	t_text = text_from_cstring_len(g_error, strlen(g_error));
 
 label_return:
 	if (t_publicKey)
@@ -569,13 +586,9 @@ Datum x509_keysize(
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
-	bytea* t_bytea = NULL;
 	int32 t_int32 = -1;
-	const unsigned char* t_pointer = NULL;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (t_x509) {
 		t_publicKey = X509_get_pubkey(t_x509);
 		if (t_publicKey) {
@@ -598,15 +611,11 @@ Datum x509_notafter(
 )
 {
 	X509* t_x509 = NULL;
-	bytea* t_bytea = NULL;
 	Timestamp t_timestamp = 0;
 	struct tm t_time;
 	int t_iResult;
-	const unsigned char* t_pointer = NULL;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -632,15 +641,11 @@ Datum x509_notbefore(
 )
 {
 	X509* t_x509 = NULL;
-	bytea* t_bytea = NULL;
 	Timestamp t_timestamp = 0;
 	struct tm t_time;
 	int t_iResult;
-	const unsigned char* t_pointer = NULL;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -667,13 +672,9 @@ Datum x509_publickeymd5(
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
-	bytea* t_bytea = NULL;
 	bytea* t_publicKeyMD5 = NULL;
-	const unsigned char* t_pointer = NULL;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		goto label_error;
 
@@ -714,15 +715,11 @@ Datum x509_publickey(
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
-	bytea* t_bytea = NULL;
 	bytea* t_derPublicKey = NULL;
-	const unsigned char* t_pointer = NULL;
 	unsigned char* t_pointer2 = NULL;
 	int t_derPublicKey_size;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		goto label_error;
 
@@ -767,14 +764,10 @@ Datum x509_rsamodulus(
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
 	const BIGNUM* t_modulus = NULL;
-	bytea* t_bytea = NULL;
 	bytea* t_derModulus = NULL;
-	const unsigned char* t_pointer = NULL;
 	int t_derModulus_size;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		goto label_error;
 
@@ -814,17 +807,11 @@ Datum x509_serialnumber(
 {
 	X509* t_x509 = NULL;
 	ASN1_INTEGER* t_asn1Integer;
-	bytea* t_bytea = NULL;
 	bytea* t_serialNumber = NULL;
 	unsigned char* t_pointer = NULL;
 	int t_size;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(
-		NULL, (const unsigned char**)&t_pointer,
-		VARSIZE_ANY_EXHDR(t_bytea)
-	);
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -856,9 +843,7 @@ Datum x509_signaturehashalgorithm(
 {
 	X509* t_x509 = NULL;
 	SIGNATURE_ALGORITHM* t_sigAlg;
-	bytea* t_bytea = NULL;
 	text* t_text = NULL;
-	const unsigned char* t_pointer = NULL;
 	char* t_string = g_error;
 	int t_iResult;
 	int t_sigAlgNID;
@@ -866,9 +851,7 @@ Datum x509_signaturehashalgorithm(
 	int t_sigKeyAlgNID;
 	int l_algNo;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		goto label_return;
 
@@ -890,9 +873,7 @@ Datum x509_signaturehashalgorithm(
 		}
 
 label_return:
-	t_text = palloc(strlen(t_string) + VARHDRSZ);
-	SET_VARSIZE(t_text, strlen(t_string) + VARHDRSZ);
-	memcpy((void*)VARDATA(t_text), t_string, strlen(t_string));
+	t_text = text_from_cstring_len(t_string, strlen(t_string));
 
 	if (t_x509)
 		X509_free(t_x509);
@@ -911,9 +892,7 @@ Datum x509_signaturekeyalgorithm(
 {
 	X509* t_x509 = NULL;
 	SIGNATURE_ALGORITHM* t_sigAlg;
-	bytea* t_bytea = NULL;
 	text* t_text = NULL;
-	const unsigned char* t_pointer = NULL;
 	char* t_string = g_error;
 	int t_iResult;
 	int t_sigAlgNID;
@@ -921,9 +900,7 @@ Datum x509_signaturekeyalgorithm(
 	int t_sigKeyAlgNID;
 	int l_algNo;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		goto label_return;
 
@@ -945,9 +922,7 @@ Datum x509_signaturekeyalgorithm(
 		}
 
 label_return:
-	t_text = palloc(strlen(t_string) + VARHDRSZ);
-	SET_VARSIZE(t_text, strlen(t_string) + VARHDRSZ);
-	memcpy((void*)VARDATA(t_text), t_string, strlen(t_string));
+	t_text = text_from_cstring_len(t_string, strlen(t_string));
 
 	if (t_x509)
 		X509_free(t_x509);
@@ -966,21 +941,11 @@ Datum x509_subjectname(
 {
 	X509* t_x509 = NULL;
 	BIO* t_bio;
-	bytea* t_bytea = NULL;
 	text* t_text = NULL;
-	const unsigned char* t_pointer = NULL;
-	char* t_string = NULL;
-	long t_size;
 
-	if (PG_ARGISNULL(0))
-		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509) {
-		t_text = palloc(strlen(g_error) + VARHDRSZ);
-		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+		t_text = text_from_cstring_len(g_error, strlen(g_error));
 	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
@@ -999,16 +964,9 @@ Datum x509_subjectname(
 					: PG_GETARG_INT32(1)
 		);
 
-		/* Get a pointer to the Subject Name string and its size */
-		t_size = BIO_get_mem_data(t_bio, &t_string);
+		/* Build the return text from the BIO contents */
+		t_text = text_from_bio(t_bio);
 
-		/* Copy the Subject Name string to the return parameter */
-		t_text = palloc(t_size + VARHDRSZ);
-		SET_VARSIZE(t_text, t_size + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), t_string, t_size);
-
-		/* Free stuff */
-		BIO_free(t_bio);
 		X509_free(t_x509);
 	}
 
@@ -1026,15 +984,11 @@ Datum x509_name(
 {
 	X509* t_x509 = NULL;
 	X509_NAME* t_x509Name = NULL;
-	bytea* t_bytea = NULL;
 	bytea* t_derName = NULL;
-	const unsigned char* t_pointer = NULL;
 	unsigned char* t_pointer2 = NULL;
 	int t_derName_size;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		goto label_error;
 
@@ -1079,8 +1033,6 @@ Datum x509_name_print(
 	bytea* t_bytea = NULL;
 	text* t_text = NULL;
 	const unsigned char* t_pointer = NULL;
-	char* t_string = NULL;
-	long t_size;
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
@@ -1088,9 +1040,7 @@ Datum x509_name_print(
 	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 	t_x509Name = d2i_X509_NAME(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
 	if (!t_x509Name) {
-		t_text = palloc(strlen(g_error) + VARHDRSZ);
-		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+		t_text = text_from_cstring_len(g_error, strlen(g_error));
 	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
@@ -1108,16 +1058,9 @@ Datum x509_name_print(
 					: PG_GETARG_INT32(1)
 		);
 
-		/* Get a pointer to the Name string and its size */
-		t_size = BIO_get_mem_data(t_bio, &t_string);
+		/* Build the return text from the BIO contents */
+		t_text = text_from_bio(t_bio);
 
-		/* Copy the Name string to the return parameter */
-		t_text = palloc(t_size + VARHDRSZ);
-		SET_VARSIZE(t_text, t_size + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), t_string, t_size);
-
-		/* Free stuff */
-		BIO_free(t_bio);
 		X509_NAME_free(t_x509Name);
 	}
 
@@ -1136,19 +1079,13 @@ Datum x509_commonname(
 	X509* t_x509 = NULL;
 	X509_NAME_ENTRY* t_nameEntry;
 	ASN1_STRING* t_asn1String;
-	bytea* t_bytea = NULL;
 	text* t_text = NULL;
-	const unsigned char* t_pointer = NULL;
 	unsigned char* t_utf8String = NULL;
 	int t_lastPos = -1;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509) {
-		t_text = palloc(strlen(g_error) + VARHDRSZ);
-		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+		t_text = text_from_cstring_len(g_error, strlen(g_error));
 	}
 	else {
 		t_lastPos = X509_NAME_get_index_by_NID(
@@ -1165,15 +1102,8 @@ Datum x509_commonname(
 			t_asn1String = X509_NAME_ENTRY_get_data(t_nameEntry);
 			(void)ASN1_STRING_to_UTF8(&t_utf8String, t_asn1String);
 			if (t_utf8String) {
-				t_text = palloc(
-					strlen((char*)t_utf8String) + VARHDRSZ
-				);
-				SET_VARSIZE(
-					t_text,
-					strlen((char*)t_utf8String) + VARHDRSZ
-				);
-				memcpy(
-					(void*)VARDATA(t_text), t_utf8String,
+				t_text = text_from_cstring_len(
+					(char*)t_utf8String,
 					strlen((char*)t_utf8String)
 				);
 				OPENSSL_free(t_utf8String);
@@ -1196,17 +1126,11 @@ Datum x509_subjectkeyidentifier(
 {
 	X509* t_x509 = NULL;
 	ASN1_OCTET_STRING* t_asn1OctetString;
-	bytea* t_bytea = NULL;
 	bytea* t_subjectKeyIdentifier = NULL;
 	unsigned char* t_pointer = NULL;
 	int t_size;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(
-		NULL, (const unsigned char**)&t_pointer,
-		VARSIZE_ANY_EXHDR(t_bytea)
-	);
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -1241,17 +1165,11 @@ Datum x509_authoritykeyid(
 {
 	X509* t_x509 = NULL;
 	AUTHORITY_KEYID* t_authorityKeyIdentifier;
-	bytea* t_bytea = NULL;
 	bytea* t_keyid = NULL;
 	unsigned char* t_pointer = NULL;
 	int t_size;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(
-		NULL, (const unsigned char**)&t_pointer,
-		VARSIZE_ANY_EXHDR(t_bytea)
-	);
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -1374,17 +1292,13 @@ Datum x509_isekupermitted(
 {
 	X509* t_x509 = NULL;
 	EXTENDED_KEY_USAGE* t_extendedKeyUsage;
-	bytea* t_bytea = NULL;
 	text* t_text = NULL;
-	const unsigned char* t_pointer = NULL;
 	char* t_ekuOID = NULL;
 	char t_ekuOID2[MAX_OIDSTRING_LENGTH];
 	int l_indexNo;
 	bool t_bResult = false;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (t_x509) {
 		t_text = PG_GETARG_TEXT_P(1);
 		t_ekuOID = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1);
@@ -1534,17 +1448,13 @@ Datum x509_ispolicypermitted(
 	X509* t_x509 = NULL;
 	CERTIFICATEPOLICIES* t_certificatePolicies;
 	POLICYINFO* t_policyInfo;
-	bytea* t_bytea = NULL;
 	text* t_text = NULL;
-	const unsigned char* t_pointer = NULL;
 	char* t_policyOID = NULL;
 	char t_policyOID2[MAX_OIDSTRING_LENGTH];
 	int l_indexNo;
 	bool t_bResult = false;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (t_x509) {
 		t_text = PG_GETARG_TEXT_P(1);
 		t_policyOID = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1);
@@ -1611,16 +1521,13 @@ Datum x509_canissuecerts(
 	ASN1_BIT_STRING* t_keyUsage;
 	SIGNATURE_BIT_STRING* t_signature;
 	ASN1_OCTET_STRING* t_oldBasicConstraints;
-	bytea* t_bytea = NULL;
 	const unsigned char* t_pointer = NULL;
 	unsigned long t_keyUsageBits;
 	unsigned long t_subjTypeBits;
 	int t_pos = -1;
 	bool t_bResult = false;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (t_x509) {
 		if (X509_get_version(t_x509) < 2) {
 			/* Assume that self-signed v1/v2 certificates may issue,
@@ -1733,15 +1640,12 @@ Datum x509_getpathlenconstraint(
 	BASIC_CONSTRAINTS_OLD* t_bCold = NULL;
 	SIGNATURE_BIT_STRING* t_signature;
 	ASN1_OCTET_STRING* t_oldBasicConstraints;
-	bytea* t_bytea = NULL;
 	const unsigned char* t_pointer = NULL;
 	unsigned long t_subjTypeBits;
 	int t_pos = -1;
 	int t_iResult = -1;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (t_x509) {
 		/* Any X509v1 or X509v2 certificate can issue certs without a
 		  path length constraint */
@@ -1949,16 +1853,10 @@ Datum x509_nameattributes(
 					t_asn1String
 				);
 				if (t_utf8String) {
-					t_text = palloc(
-						strlen(t_utf8String) + VARHDRSZ
-					);
-					SET_VARSIZE(
-						t_text,
-						strlen(t_utf8String) + VARHDRSZ
-					);
-					memcpy((void*)VARDATA(t_text),
+					t_text = text_from_cstring_len(
 						t_utf8String,
-						strlen(t_utf8String));
+						strlen(t_utf8String)
+					);
 					OPENSSL_free(t_utf8String);
 				}
 			}
@@ -1969,12 +1867,9 @@ Datum x509_nameattributes(
 					X509_NAME_ENTRY_get_object(t_nameEntry),
 					1
 				);
-				t_text = palloc(strlen(t_buffer) + VARHDRSZ);
-				SET_VARSIZE(
-					t_text, strlen(t_buffer) + VARHDRSZ
+				t_text = text_from_cstring_len(
+					t_buffer, strlen(t_buffer)
 				);
-				memcpy((void*)VARDATA(t_text), t_buffer,
-					strlen(t_buffer));
 			}
 
 			SRF_RETURN_NEXT(
@@ -2313,14 +2208,9 @@ Datum x509_altnames(
 
 			text* t_text = NULL;
 			if (t_utf8String) {
-				t_text = palloc(
-					strlen(t_utf8String) + VARHDRSZ
+				t_text = text_from_cstring_len(
+					t_utf8String, strlen(t_utf8String)
 				);
-				SET_VARSIZE(
-					t_text, strlen(t_utf8String) + VARHDRSZ
-				);
-				memcpy((void*)VARDATA(t_text), t_utf8String,
-					strlen(t_utf8String));
 				OPENSSL_free(t_utf8String);
 			}
 			else if ((!PG_GETARG_BOOL(3)) && (t_generalName->type
@@ -2334,12 +2224,9 @@ Datum x509_altnames(
 				OBJ_obj2txt(
 					t_buffer, sizeof t_buffer, t_oid, 1
 				);
-				t_text = palloc(strlen(t_buffer) + VARHDRSZ);
-				SET_VARSIZE(
-					t_text, strlen(t_buffer) + VARHDRSZ
+				t_text = text_from_cstring_len(
+					t_buffer, strlen(t_buffer)
 				);
-				memcpy((void*)VARDATA(t_text), t_buffer,
-					strlen(t_buffer));
 			}
 
 			if (t_text)
@@ -2655,14 +2542,9 @@ Datum x509_crldistributionpoints(
 				);
 
 			if (t_utf8String) {
-				text* t_text = palloc(
-					strlen(t_utf8String) + VARHDRSZ
+				text* t_text = text_from_cstring_len(
+					t_utf8String, strlen(t_utf8String)
 				);
-				SET_VARSIZE(
-					t_text, strlen(t_utf8String) + VARHDRSZ
-				);
-				memcpy((void*)VARDATA(t_text), t_utf8String,
-					strlen(t_utf8String));
 				OPENSSL_free(t_utf8String);
 				SRF_RETURN_NEXT(
 					t_funcCtx, PointerGetDatum(t_text)
@@ -2782,14 +2664,9 @@ Datum x509_authorityinfoaccess(
 			);
 
 			if (t_utf8String) {
-				text* t_text = palloc(
-					strlen(t_utf8String) + VARHDRSZ
+				text* t_text = text_from_cstring_len(
+					t_utf8String, strlen(t_utf8String)
 				);
-				SET_VARSIZE(
-					t_text, strlen(t_utf8String) + VARHDRSZ
-				);
-				memcpy((void*)VARDATA(t_text), t_utf8String,
-					strlen(t_utf8String));
 				OPENSSL_free(t_utf8String);
 				SRF_RETURN_NEXT(
 					t_funcCtx, PointerGetDatum(t_text)
@@ -2814,24 +2691,15 @@ Datum x509_print(
 )
 {
 	X509* t_x509 = NULL;
-	bytea* t_bytea = NULL;
 	text* t_text = NULL;
-	const unsigned char* t_pointer = NULL;
 
-	if (PG_ARGISNULL(0))
-		PG_RETURN_NULL();
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509) {
-		t_text = palloc(strlen(g_error) + VARHDRSZ);
-		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+		t_text = text_from_cstring_len(g_error, strlen(g_error));
 	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
 		  up all its memory when we close it later */
-		char* t_string = NULL;
 		BIO* t_bio = BIO_new(BIO_s_mem());
 		(void)BIO_set_close(t_bio, BIO_CLOSE);
 
@@ -2851,16 +2719,9 @@ Datum x509_print(
 			PG_ARGISNULL(2) ? 0 : PG_GETARG_INT32(2)
 		);
 
-		/* Get a pointer to the string and its size */
-		int t_size = BIO_get_mem_data(t_bio, &t_string);
+		/* Build the return text from the BIO contents */
+		t_text = text_from_bio(t_bio);
 
-		/* Copy the string to the return parameter */
-		t_text = palloc(t_size + VARHDRSZ);
-		SET_VARSIZE(t_text, t_size + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), t_string, t_size);
-
-		/* Free stuff */
-		BIO_free(t_bio);
 		X509_free(t_x509);
 	}
 
@@ -2882,9 +2743,7 @@ Datum x509_verify(
 	const unsigned char* t_pointer = NULL;
 	bool t_bResult = false;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (t_x509) {
 		t_bytea = PG_GETARG_BYTEA_PP(1);
 		t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
@@ -2916,14 +2775,10 @@ Datum x509_anynameswithnuls(
 	X509_NAME_ENTRY* t_nameEntry;
 	STACK_OF(GENERAL_NAME)* t_genNames;
 	const GENERAL_NAME* t_generalName;
-	bytea* t_bytea = NULL;
-	const unsigned char* t_pointer = NULL;
 	int l_indexNo;
 	bool t_bResult = false;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -3237,15 +3092,11 @@ Datum x509_hasrocafingerprint(
 	BN_CTX_start(t_ctx);
 	BIGNUM* t_prime = BN_CTX_get(t_ctx);
 	BIGNUM* t_temp = BN_CTX_get(t_ctx);
-	bytea* t_bytea = NULL;
-	const unsigned char* t_pointer = NULL;
 	bool t_bResult = false;
 	bool t_bResultIsNULL = true;
 	int i;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -3407,15 +3258,11 @@ Datum x509_hascloseprimes(
 	BN_CTX_start(t_ctx);
 	BIGNUM* a = BN_CTX_get(t_ctx);
 	BIGNUM* a_squared_minus_n = BN_CTX_get(t_ctx);
-	bytea* t_bytea = NULL;
-	const unsigned char* t_pointer = NULL;
 	bool t_bResult = false;
 	bool t_bResultIsNULL = true;
 	int i;
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
 		PG_RETURN_NULL();
 
@@ -3481,14 +3328,11 @@ Datum ocspresponse_print(
 		NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 	);
 	if (!t_ocspResponse) {
-		t_text = palloc(strlen(g_error) + VARHDRSZ);
-		SET_VARSIZE(t_text, strlen(g_error) + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), g_error, strlen(g_error));
+		t_text = text_from_cstring_len(g_error, strlen(g_error));
 	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
 		  up all its memory when we close it later */
-		char* t_string = NULL;
 		BIO* t_bio = BIO_new(BIO_s_mem());
 		(void)BIO_set_close(t_bio, BIO_CLOSE);
 
@@ -3498,16 +3342,9 @@ Datum ocspresponse_print(
 			PG_ARGISNULL(1) ? 0 : PG_GETARG_INT32(2)
 		);
 
-		/* Get a pointer to the string and its size */
-		int t_size = BIO_get_mem_data(t_bio, &t_string);
+		/* Build the return text from the BIO contents */
+		t_text = text_from_bio(t_bio);
 
-		/* Copy the string to the return parameter */
-		t_text = palloc(t_size + VARHDRSZ);
-		SET_VARSIZE(t_text, t_size + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), t_string, t_size);
-
-		/* Free stuff */
-		BIO_free(t_bio);
 		OCSP_RESPONSE_free(t_ocspResponse);
 	}
 
@@ -3556,8 +3393,6 @@ Datum x509_basic_info(
 	#define X509_BASIC_INFO_NFIELDS 12
 	TupleDesc t_tupleDesc;
 	X509* t_x509 = NULL;
-	bytea* t_bytea;
-	const unsigned char* t_pointer;
 	Datum t_values[X509_BASIC_INFO_NFIELDS];
 	bool t_nulls[X509_BASIC_INFO_NFIELDS];
 	HeapTuple t_heapTuple;
@@ -3580,9 +3415,7 @@ Datum x509_basic_info(
 		t_nulls[l_field] = true;
 	}
 
-	t_bytea = PG_GETARG_BYTEA_PP(0);
-	t_pointer = (const unsigned char*)VARDATA_ANY(t_bytea);
-	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509) {
 		t_heapTuple = heap_form_tuple(t_tupleDesc, t_values, t_nulls);
 		PG_RETURN_DATUM(HeapTupleGetDatum(t_heapTuple));
@@ -3941,9 +3774,6 @@ Datum x509pq_opensslversion(
 	PG_FUNCTION_ARGS
 )
 {
-	size_t t_len = strlen(SSLeay_version(SSLEAY_VERSION));
-	text* t_text = palloc(t_len + VARHDRSZ);
-	SET_VARSIZE(t_text, t_len + VARHDRSZ);
-	memcpy((void*)VARDATA(t_text), SSLeay_version(SSLEAY_VERSION), t_len);
-	PG_RETURN_TEXT_P(t_text);
+	const char* t_version = SSLeay_version(SSLEAY_VERSION);
+	PG_RETURN_TEXT_P(text_from_cstring_len(t_version, strlen(t_version)));
 }
