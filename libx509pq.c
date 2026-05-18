@@ -3562,6 +3562,291 @@ Datum ocspresponse_print(
 }
 
 
+/******************************************************************************
+ * Helpers used by x509_basic_info().                                         *
+ ******************************************************************************/
+static text* mk_text_n(
+	const void* s,
+	int n
+)
+{
+	text* t = (text*)palloc(n + VARHDRSZ);
+	SET_VARSIZE(t, n + VARHDRSZ);
+	memcpy(VARDATA(t), s, n);
+	return t;
+}
+
+static bytea* mk_bytea_n(
+	const void* s,
+	int n
+)
+{
+	bytea* b = (bytea*)palloc(n + VARHDRSZ);
+	SET_VARSIZE(b, n + VARHDRSZ);
+	memcpy(VARDATA(b), s, n);
+	return b;
+}
+
+
+/******************************************************************************
+ * x509_basic_info()                                                          *
+ *   Parse the certificate once and return all the cheap-to-extract fields    *
+ *   as a single composite row.  Equivalent to calling the individual         *
+ *   x509_issuerName/x509_subjectName/x509_notBefore/... functions but with   *
+ *   a single d2i_X509() and a single X509_get_pubkey().                      *
+ ******************************************************************************/
+PG_FUNCTION_INFO_V1(x509_basic_info);
+Datum x509_basic_info(
+	PG_FUNCTION_ARGS
+)
+{
+	#define X509_BASIC_INFO_NFIELDS 12
+	TupleDesc t_tupleDesc;
+	X509* t_x509 = NULL;
+	bytea* t_bytea;
+	const unsigned char* t_pointer;
+	Datum t_values[X509_BASIC_INFO_NFIELDS];
+	bool t_nulls[X509_BASIC_INFO_NFIELDS];
+	HeapTuple t_heapTuple;
+	BIO* t_bio;
+	int l_field;
+
+	if (PG_ARGISNULL(0))
+		PG_RETURN_NULL();
+
+	if (get_call_result_type(fcinfo, NULL, &t_tupleDesc) != TYPEFUNC_COMPOSITE)
+		ereport(ERROR,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			errmsg("function returning record called in context "
+				"that cannot accept type record"))
+		);
+	t_tupleDesc = BlessTupleDesc(t_tupleDesc);
+
+	for (l_field = 0; l_field < X509_BASIC_INFO_NFIELDS; l_field++) {
+		t_values[l_field] = (Datum) 0;
+		t_nulls[l_field] = true;
+	}
+
+	t_bytea = PG_GETARG_BYTEA_PP(0);
+	t_pointer = (const unsigned char*)VARDATA_ANY(t_bytea);
+	t_x509 = d2i_X509(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
+	if (!t_x509) {
+		t_heapTuple = heap_form_tuple(t_tupleDesc, t_values, t_nulls);
+		PG_RETURN_DATUM(HeapTupleGetDatum(t_heapTuple));
+	}
+
+	t_bio = BIO_new(BIO_s_mem());
+	(void)BIO_set_close(t_bio, BIO_CLOSE);
+
+	/* 0: issuer_name (RFC2253-ish, matching x509_issuerName defaults) */
+	{
+		char* s;
+		long n;
+		(void)BIO_reset(t_bio);
+		(void)X509_NAME_print_ex(
+			t_bio, X509_get_issuer_name(t_x509), 0,
+			(ASN1_STRFLGS_RFC2253 | ASN1_STRFLGS_ESC_QUOTE
+				| XN_FLAG_SEP_CPLUS_SPC | XN_FLAG_FN_SN)
+				& ~ASN1_STRFLGS_ESC_MSB
+		);
+		n = BIO_get_mem_data(t_bio, &s);
+		if (n >= 0) {
+			t_values[0] = PointerGetDatum(mk_text_n(s, n));
+			t_nulls[0] = false;
+		}
+	}
+
+	/* 1: subject_name (same flags as x509_subjectName defaults) */
+	{
+		char* s;
+		long n;
+		(void)BIO_reset(t_bio);
+		(void)X509_NAME_print_ex(
+			t_bio, X509_get_subject_name(t_x509), 0,
+			(ASN1_STRFLGS_RFC2253 | ASN1_STRFLGS_ESC_QUOTE
+				| XN_FLAG_SEP_CPLUS_SPC | XN_FLAG_FN_SN)
+				& ~ASN1_STRFLGS_ESC_MSB
+		);
+		n = BIO_get_mem_data(t_bio, &s);
+		if (n >= 0) {
+			t_values[1] = PointerGetDatum(mk_text_n(s, n));
+			t_nulls[1] = false;
+		}
+	}
+
+	/* 2: common_name (first CN in subject, UTF-8) */
+	{
+		X509_NAME* t_name = X509_get_subject_name(t_x509);
+		int t_idx = X509_NAME_get_index_by_NID(
+			t_name, NID_commonName, -1
+		);
+		if (t_idx != -1) {
+			X509_NAME_ENTRY* t_ne = X509_NAME_get_entry(
+				t_name, t_idx
+			);
+			ASN1_STRING* t_as = X509_NAME_ENTRY_get_data(t_ne);
+			unsigned char* t_utf8 = NULL;
+			int t_len = ASN1_STRING_to_UTF8(&t_utf8, t_as);
+			if ((t_len >= 0) && t_utf8) {
+				t_values[2] = PointerGetDatum(
+					mk_text_n(t_utf8, t_len)
+				);
+				t_nulls[2] = false;
+				OPENSSL_free(t_utf8);
+			}
+		}
+	}
+
+	/* 3: serial_number (DER-encoded body, sans tag+length octets, as
+	  x509_serialNumber does) */
+	{
+		ASN1_INTEGER* t_si = X509_get_serialNumber(t_x509);
+		int t_sz = i2d_ASN1_INTEGER(t_si, NULL);
+		if ((t_sz > 2) && (t_sz <= 129)) {
+			bytea* b = (bytea*)palloc(VARHDRSZ + t_sz - 2);
+			unsigned char* p = (unsigned char*)b + VARHDRSZ - 2;
+			(void)i2d_ASN1_INTEGER(t_si, &p);
+			SET_VARSIZE(b, VARHDRSZ + t_sz - 2);
+			t_values[3] = PointerGetDatum(b);
+			t_nulls[3] = false;
+		}
+	}
+
+	/* 4: not_before, 5: not_after */
+	{
+		struct tm t_time;
+		if (ASN1_TIME_parse(X509_get0_notBefore(t_x509), &t_time)) {
+			Timestamp ts = (timegm(&t_time) - 946684800)
+							* USECS_PER_SEC;
+			t_values[4] = TimestampGetDatum(ts);
+			t_nulls[4] = false;
+		}
+		if (ASN1_TIME_parse(X509_get0_notAfter(t_x509), &t_time)) {
+			Timestamp ts = (timegm(&t_time) - 946684800)
+							* USECS_PER_SEC;
+			t_values[5] = TimestampGetDatum(ts);
+			t_nulls[5] = false;
+		}
+	}
+
+	/* 6: key_algorithm, 7: key_size */
+	{
+		EVP_PKEY* t_pk = X509_get_pubkey(t_x509);
+		if (t_pk) {
+			const char* t_kname = NULL;
+			int t_bits;
+			switch (EVP_PKEY_id(t_pk)) {
+				case EVP_PKEY_RSA: case EVP_PKEY_RSA2:
+					t_kname = "RSA"; break;
+				case EVP_PKEY_DSA: case EVP_PKEY_DSA1:
+				case EVP_PKEY_DSA2: case EVP_PKEY_DSA3:
+				case EVP_PKEY_DSA4:
+					t_kname = "DSA"; break;
+				case EVP_PKEY_DH:
+					t_kname = "DH"; break;
+				case EVP_PKEY_EC:
+					t_kname = "EC"; break;
+				case EVP_PKEY_NONE:
+					t_kname = "NONE"; break;
+				default:
+					break;
+			}
+			if (t_kname) {
+				t_values[6] = PointerGetDatum(mk_text_n(
+					t_kname, strlen(t_kname)
+				));
+				t_nulls[6] = false;
+			}
+			t_bits = EVP_PKEY_bits(t_pk);
+			if (t_bits > 0) {
+				t_values[7] = Int32GetDatum(t_bits);
+				t_nulls[7] = false;
+			}
+			EVP_PKEY_free(t_pk);
+		}
+	}
+
+	/* 8: signature_hash_algorithm, 9: signature_key_algorithm */
+	{
+		SIGNATURE_ALGORITHM* t_sa;
+		int t_sigNID, t_hashNID, t_pkeyNID;
+		size_t l_algNo;
+		X509_GET_SIGALGNID(&t_sa, t_x509);
+		t_sigNID = OBJ_obj2nid(t_sa->algorithm);
+		if (OBJ_find_sigid_algs(t_sigNID, &t_hashNID, &t_pkeyNID)) {
+			for (l_algNo = 0;
+				l_algNo < (sizeof(g_hashAlgorithms)
+						/ sizeof(tAlgorithm));
+				l_algNo++)
+				if (g_hashAlgorithms[l_algNo].m_nid
+								== t_hashNID) {
+					const char* s =
+						g_hashAlgorithms[l_algNo].m_name;
+					t_values[8] = PointerGetDatum(
+						mk_text_n(s, strlen(s))
+					);
+					t_nulls[8] = false;
+					break;
+				}
+			for (l_algNo = 0;
+				l_algNo < (sizeof(g_pkeyAlgorithms)
+						/ sizeof(tAlgorithm));
+				l_algNo++)
+				if (g_pkeyAlgorithms[l_algNo].m_nid
+								== t_pkeyNID) {
+					const char* s =
+						g_pkeyAlgorithms[l_algNo].m_name;
+					t_values[9] = PointerGetDatum(
+						mk_text_n(s, strlen(s))
+					);
+					t_nulls[9] = false;
+					break;
+				}
+		}
+	}
+
+	/* 10: subject_key_identifier */
+	{
+		ASN1_OCTET_STRING* t_ski = X509_get_ext_d2i(
+			t_x509, NID_subject_key_identifier, NULL, NULL
+		);
+		if (t_ski) {
+			int t_sz = ASN1_STRING_length(t_ski);
+			t_values[10] = PointerGetDatum(mk_bytea_n(
+				ASN1_STRING_get0_data(t_ski), t_sz
+			));
+			t_nulls[10] = false;
+			ASN1_OCTET_STRING_free(t_ski);
+		}
+	}
+
+	/* 11: authority_key_identifier */
+	{
+		AUTHORITY_KEYID* t_aki = X509_get_ext_d2i(
+			t_x509, NID_authority_key_identifier, NULL, NULL
+		);
+		if (t_aki) {
+			if (t_aki->keyid) {
+				int t_sz = ASN1_STRING_length(t_aki->keyid);
+				t_values[11] = PointerGetDatum(mk_bytea_n(
+					ASN1_STRING_get0_data(t_aki->keyid),
+					t_sz
+				));
+				t_nulls[11] = false;
+			}
+			AUTHORITY_KEYID_free(t_aki);
+		}
+	}
+
+	BIO_free(t_bio);
+	X509_free(t_x509);
+
+	t_heapTuple = heap_form_tuple(t_tupleDesc, t_values, t_nulls);
+	PG_RETURN_DATUM(HeapTupleGetDatum(t_heapTuple));
+	#undef X509_BASIC_INFO_NFIELDS
+}
+
+
 /* URL Encoding - characters to not encode:
  * 33 (!)
  * 39-42 ('()*)
