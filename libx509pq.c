@@ -237,6 +237,25 @@ static inline text* text_from_bio(
 		);                                                      \
 	} while (0)
 
+/* SRF-friendly variant: sets the supplied X509** to NULL if the argument
+  is SQL NULL (instead of returning), so the SRF firstcall setup can
+  continue (e.g. to restore the memory context) and the per-call loop
+  will naturally return zero rows. Also sets X509** to NULL if decoding
+  fails. */
+#define X509_FROM_BYTEA_ARG_OR_NULL(x509_out, argno)                    \
+	do {                                                            \
+		if (PG_ARGISNULL(argno)) {                              \
+			(x509_out) = NULL;                              \
+		} else {                                                \
+			bytea* _b = PG_GETARG_BYTEA_PP(argno);          \
+			const unsigned char* _p =                       \
+				(const unsigned char*)VARDATA_ANY(_b);  \
+			(x509_out) = d2i_X509(                          \
+				NULL, &_p, VARSIZE_ANY_EXHDR(_b)        \
+			);                                              \
+		}                                                       \
+	} while (0)
+
 
 #define ROCA_PRINTS_LENGTH	17
 static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
@@ -1215,8 +1234,6 @@ Datum x509_extkeyusages(
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
-		bytea* t_bytea = NULL;
-		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
 		t_funcCtx = SRF_FIRSTCALL_INIT();
@@ -1233,13 +1250,7 @@ Datum x509_extkeyusages(
 		memset(t_extKeyUsageCtx, '\0', sizeof(tExtKeyUsageCtx));
 
 		/* One-time setup code */
-		{
-			t_bytea = PG_GETARG_BYTEA_PP(0);
-			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
-			);
-		}
+		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_extKeyUsageCtx->m_extKeyUsages = X509_get_ext_d2i(
 				t_x509, NID_ext_key_usage, NULL, NULL
@@ -1370,8 +1381,6 @@ Datum x509_certpolicies(
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
-		bytea* t_bytea = NULL;
-		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
 		t_funcCtx = SRF_FIRSTCALL_INIT();
@@ -1388,13 +1397,7 @@ Datum x509_certpolicies(
 		memset(t_certPoliciesCtx, '\0', sizeof(tCertPoliciesCtx));
 
 		/* One-time setup code */
-		{
-			t_bytea = PG_GETARG_BYTEA_PP(0);
-			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
-			);
-		}
+		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_certPoliciesCtx->m_certPolicies = X509_get_ext_d2i(
 				t_x509, NID_certificate_policies, NULL, NULL
@@ -1757,8 +1760,6 @@ Datum x509_nameattributes(
 
 	if (SRF_IS_FIRSTCALL()) {
 		MemoryContext t_oldMemoryCtx;
-		bytea* t_bytea = NULL;
-		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
 		t_funcCtx = SRF_FIRSTCALL_INIT();
@@ -1776,13 +1777,7 @@ Datum x509_nameattributes(
 		t_x509NameCtx->m_nid = NID_X509;
 
 		/* One-time setup code */
-		{
-			t_bytea = PG_GETARG_BYTEA_PP(0);
-			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-			t_x509NameCtx->m_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
-			);
-		}
+		X509_FROM_BYTEA_ARG_OR_NULL(t_x509NameCtx->m_x509, 0);
 		if (t_x509NameCtx->m_x509) {
 			if (PG_GETARG_BOOL(2))
 				t_x509NameCtx->m_name = X509_get_subject_name(
@@ -1907,8 +1902,6 @@ Datum x509_nameattributes_raw(
 
 	if (SRF_IS_FIRSTCALL()) {
 		MemoryContext t_oldMemoryCtx;
-		bytea* t_bytea = NULL;
-		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
 		t_funcCtx = SRF_FIRSTCALL_INIT();
@@ -1937,13 +1930,7 @@ Datum x509_nameattributes_raw(
 		memset(t_nameAttributesRawCtx->m_nulls, true, (t_tupleDesc->natts) * sizeof(bool));
 
 		/* One-time setup code */
-		{
-			t_bytea = PG_GETARG_BYTEA_PP(0);
-			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-			t_nameAttributesRawCtx->m_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
-			);
-		}
+		X509_FROM_BYTEA_ARG_OR_NULL(t_nameAttributesRawCtx->m_x509, 0);
 		if (t_nameAttributesRawCtx->m_x509) {
 			if (PG_GETARG_BOOL(1))
 				t_nameAttributesRawCtx->m_name = X509_get_subject_name(
@@ -2039,8 +2026,6 @@ Datum x509_altnames(
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
-		bytea* t_bytea = NULL;
-		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
 		t_funcCtx = SRF_FIRSTCALL_INIT();
@@ -2057,13 +2042,7 @@ Datum x509_altnames(
 		memset(t_altNamesCtx, '\0', sizeof(tAltNamesCtx));
 
 		/* One-time setup code */
-		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_PP(0);
-			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
-			);
-		}
+		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			if (PG_GETARG_BOOL(2))
 				t_altNamesCtx->m_genNames = X509_get_ext_d2i(
@@ -2266,8 +2245,6 @@ Datum x509_altnames_raw(
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
-		bytea* t_bytea = NULL;
-		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
 		t_funcCtx = SRF_FIRSTCALL_INIT();
@@ -2296,13 +2273,7 @@ Datum x509_altnames_raw(
 		memset(t_altNamesRawCtx->m_nulls, true, (t_tupleDesc->natts) * sizeof(bool));
 
 		/* One-time setup code */
-		{
-			t_bytea = PG_GETARG_BYTEA_PP(0);
-			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
-			);
-		}
+		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_altNamesRawCtx->m_genNames = X509_get_ext_d2i(
 				t_x509,
@@ -2471,8 +2442,6 @@ Datum x509_crldistributionpoints(
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
-		bytea* t_bytea = NULL;
-		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
 		t_funcCtx = SRF_FIRSTCALL_INIT();
@@ -2490,13 +2459,7 @@ Datum x509_crldistributionpoints(
 			sizeof(tCRLDistributionPointsCtx));
 
 		/* One-time setup code */
-		{
-			t_bytea = PG_GETARG_BYTEA_PP(0);
-			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
-			);
-		}
+		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_cRLDistributionPointsCtx->m_cRLDistributionPoints
 				= X509_get_ext_d2i(
@@ -2582,8 +2545,6 @@ Datum x509_authorityinfoaccess(
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
 		MemoryContext t_oldMemoryCtx;
-		bytea* t_bytea = NULL;
-		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
 		t_funcCtx = SRF_FIRSTCALL_INIT();
@@ -2601,13 +2562,7 @@ Datum x509_authorityinfoaccess(
 			sizeof(tAuthorityInfoAccessCtx));
 
 		/* One-time setup code */
-		if (!PG_ARGISNULL(0)) {
-			t_bytea = PG_GETARG_BYTEA_PP(0);
-			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-			t_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
-			);
-		}
+		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_authorityInfoAccessCtx->m_authorityInfoAccess =
 				X509_get_ext_d2i(
@@ -2896,8 +2851,6 @@ Datum x509_extensions(
 
 	if (SRF_IS_FIRSTCALL()) {
 		MemoryContext t_oldMemoryCtx;
-		bytea* t_bytea = NULL;
-		const unsigned char* t_pointer = NULL;
 
 		/* Create a function context for cross-call persistence */
 		t_funcCtx = SRF_FIRSTCALL_INIT();
@@ -2914,13 +2867,7 @@ Datum x509_extensions(
 		memset(t_extensionsCtx, '\0', sizeof(tExtensionsCtx));
 
 		/* One-time setup code */
-		{
-			t_bytea = PG_GETARG_BYTEA_PP(0);
-			t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
-			t_extensionsCtx->m_x509 = d2i_X509(
-				NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
-			);
-		}
+		X509_FROM_BYTEA_ARG_OR_NULL(t_extensionsCtx->m_x509, 0);
 		if (t_extensionsCtx->m_x509) {
 			t_extensionsCtx->m_extensions = X509_get0_extensions(
 				t_extensionsCtx->m_x509
