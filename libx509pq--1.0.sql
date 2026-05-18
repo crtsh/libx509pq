@@ -135,3 +135,24 @@ CREATE OR REPLACE FUNCTION urlDecode(text) RETURNS text
 
 CREATE OR REPLACE FUNCTION x509pq_opensslVersion() RETURNS text
 	AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE PARALLEL SAFE;
+
+-- A single-parse alternative to calling x509_issuerName/x509_subjectName/...
+-- individually.  Parses the certificate once and returns the cheap-to-extract
+-- fields as a composite row.
+CREATE TYPE x509_basic_info_type AS (
+	ISSUER_NAME			text,
+	SUBJECT_NAME			text,
+	COMMON_NAME			text,
+	SERIAL_NUMBER			bytea,
+	NOT_BEFORE			timestamp,
+	NOT_AFTER			timestamp,
+	KEY_ALGORITHM			text,
+	KEY_SIZE			integer,
+	SIGNATURE_HASH_ALGORITHM	text,
+	SIGNATURE_KEY_ALGORITHM		text,
+	SUBJECT_KEY_IDENTIFIER		bytea,
+	AUTHORITY_KEY_IDENTIFIER	bytea
+);
+
+CREATE OR REPLACE FUNCTION x509_basic_info(bytea) RETURNS x509_basic_info_type
+	AS 'MODULE_PATHNAME' LANGUAGE c IMMUTABLE STRICT PARALLEL SAFE;
