@@ -256,9 +256,9 @@ static inline text* text_from_bio(
   fails. */
 #define X509_FROM_BYTEA_ARG_OR_NULL(x509_out, argno)                    \
 	do {                                                            \
-		if (PG_ARGISNULL(argno)) {                              \
+		if (PG_ARGISNULL(argno))                                \
 			(x509_out) = NULL;                              \
-		} else {                                                \
+		else {                                                  \
 			bytea* _b = PG_GETARG_BYTEA_PP(argno);          \
 			const unsigned char* _p =                       \
 				(const unsigned char*)VARDATA_ANY(_b);  \
@@ -515,9 +515,8 @@ Datum x509_issuername(
 	text* t_text = NULL;
 
 	X509_FROM_BYTEA_ARG(t_x509, 0);
-	if (!t_x509) {
+	if (!t_x509)
 		t_text = text_from_cstring_len(g_error, strlen(g_error));
-	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
 		  up all its memory when we close it later */
@@ -975,9 +974,8 @@ Datum x509_subjectname(
 	text* t_text = NULL;
 
 	X509_FROM_BYTEA_ARG(t_x509, 0);
-	if (!t_x509) {
+	if (!t_x509)
 		t_text = text_from_cstring_len(g_error, strlen(g_error));
-	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
 		  up all its memory when we close it later */
@@ -1070,9 +1068,8 @@ Datum x509_name_print(
 	t_bytea = PG_GETARG_BYTEA_PP(0);
 	t_pointer = (unsigned char*)VARDATA_ANY(t_bytea);
 	t_x509Name = d2i_X509_NAME(NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea));
-	if (!t_x509Name) {
+	if (!t_x509Name)
 		t_text = text_from_cstring_len(g_error, strlen(g_error));
-	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
 		  up all its memory when we close it later */
@@ -1115,9 +1112,8 @@ Datum x509_commonname(
 	int t_lastPos = -1;
 
 	X509_FROM_BYTEA_ARG(t_x509, 0);
-	if (!t_x509) {
+	if (!t_x509)
 		t_text = text_from_cstring_len(g_error, strlen(g_error));
-	}
 	else {
 		t_lastPos = X509_NAME_get_index_by_NID(
 			X509_get_subject_name(t_x509), NID_commonName, t_lastPos
@@ -2657,9 +2653,8 @@ Datum x509_print(
 	text* t_text = NULL;
 
 	X509_FROM_BYTEA_ARG(t_x509, 0);
-	if (!t_x509) {
+	if (!t_x509)
 		t_text = text_from_cstring_len(g_error, strlen(g_error));
-	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
 		  up all its memory when we close it later */
@@ -3125,9 +3120,8 @@ static int BN_isqrt(
 	tmp = BN_CTX_get(ctx);
 	last_delta = BN_CTX_get(ctx);
 	delta = BN_CTX_get(ctx);
-	if (estimate == NULL || tmp == NULL || last_delta == NULL || delta == NULL) {
+	if (estimate == NULL || tmp == NULL || last_delta == NULL || delta == NULL)
 		goto err;
-	}
 
 	// We estimate that the square root of an n-bit number is 2^{n/2}.
 	if (!BN_lshift(estimate, BN_value_one(), BN_num_bits(in)/2)) {
@@ -3282,9 +3276,8 @@ Datum ocspresponse_print(
 	t_ocspResponse = d2i_OCSP_RESPONSE(
 		NULL, &t_pointer, VARSIZE_ANY_EXHDR(t_bytea)
 	);
-	if (!t_ocspResponse) {
+	if (!t_ocspResponse)
 		t_text = text_from_cstring_len(g_error, strlen(g_error));
-	}
 	else {
 		/* Create a memory BIO and tell it to make sure that it clears
 		  up all its memory when we close it later */
