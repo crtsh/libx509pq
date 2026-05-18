@@ -1819,14 +1819,10 @@ Datum x509_nameattributes(
 
 	if ((t_x509NameCtx->m_nid == NID_undef) && (t_funcCtx->call_cntr == 0)) {
 		char* c_unsupportedAttribute = "Unsupported Attribute";
-		text* t_text = palloc(
-			strlen(c_unsupportedAttribute + VARHDRSZ)
+		text* t_text = text_from_cstring_len(
+			c_unsupportedAttribute,
+			strlen(c_unsupportedAttribute)
 		);
-		SET_VARSIZE(
-			t_text, strlen(c_unsupportedAttribute) + VARHDRSZ
-		);
-		memcpy((void*)VARDATA(t_text), c_unsupportedAttribute,
-			strlen(c_unsupportedAttribute));
 		SRF_RETURN_NEXT(t_funcCtx, PointerGetDatum(t_text));
 	}
 
@@ -2094,10 +2090,10 @@ Datum x509_altnames(
 
 	if ((t_altNamesCtx->m_type == -2) && (t_funcCtx->call_cntr == 0)) {
 		char* c_unsupportedGenName = "Unsupported GeneralName";
-		text* t_text = palloc(strlen(c_unsupportedGenName + VARHDRSZ));
-		SET_VARSIZE(t_text, strlen(c_unsupportedGenName) + VARHDRSZ);
-		memcpy((void*)VARDATA(t_text), c_unsupportedGenName,
-			strlen(c_unsupportedGenName));
+		text* t_text = text_from_cstring_len(
+			c_unsupportedGenName,
+			strlen(c_unsupportedGenName)
+		);
 		SRF_RETURN_NEXT(t_funcCtx, PointerGetDatum(t_text));
 	}
 
