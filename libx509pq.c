@@ -298,7 +298,7 @@ static inline text* text_from_bio(
 static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
 	11, 13, 17, 19, 37, 53, 61, 71, 73, 79, 97, 103, 107, 109, 127, 151, 157
 };
-BIGNUM* g_prints[ROCA_PRINTS_LENGTH];
+static BIGNUM* g_prints[ROCA_PRINTS_LENGTH];
 
 /******************************************************************************
  * rocacheck_init()                                                           *
