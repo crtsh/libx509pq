@@ -1320,7 +1320,7 @@ Datum x509_isekupermitted(
 	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (t_x509) {
 		t_text = PG_GETARG_TEXT_P(1);
-		t_ekuOID = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1);
+		t_ekuOID = palloc0(VARSIZE(t_text) - VARHDRSZ + 1);
 		if (t_ekuOID) {
 			strncpy(
 				t_ekuOID, VARDATA(t_text),
@@ -1360,7 +1360,7 @@ Datum x509_isekupermitted(
 
 	label_done:
 		if (t_ekuOID)
-			free(t_ekuOID);
+			pfree(t_ekuOID);
 		X509_free(t_x509);
 	}
 
@@ -1468,7 +1468,7 @@ Datum x509_ispolicypermitted(
 	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (t_x509) {
 		t_text = PG_GETARG_TEXT_P(1);
-		t_policyOID = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1);
+		t_policyOID = palloc0(VARSIZE(t_text) - VARHDRSZ + 1);
 		if (t_policyOID) {
 			strncpy(
 				t_policyOID, VARDATA(t_text),
@@ -1510,7 +1510,7 @@ Datum x509_ispolicypermitted(
 
 	label_done:
 		if (t_policyOID)
-			free(t_policyOID);
+			pfree(t_policyOID);
 		X509_free(t_x509);
 	}
 
@@ -2939,7 +2939,7 @@ Datum x509_hasextension(
 		PG_RETURN_NULL();
 
 	/* NUL-terminate the OID string */
-	if ((t_extnTxt = calloc(VARSIZE(t_text) - VARHDRSZ + 1, 1)) == NULL)
+	if ((t_extnTxt = palloc0(VARSIZE(t_text) - VARHDRSZ + 1)) == NULL)
 		goto label_done;
 	strncpy(t_extnTxt, VARDATA(t_text), VARSIZE(t_text) - VARHDRSZ);
 	if ((t_extnObj = OBJ_txt2obj(t_extnTxt, 0)) == NULL)
@@ -2958,7 +2958,7 @@ label_done:
 	if (t_extnObj)
 		ASN1_OBJECT_free(t_extnObj);
 	if (t_extnTxt)
-		free(t_extnTxt);
+		pfree(t_extnTxt);
 	X509_free(t_x509);
 
 	PG_RETURN_BOOL(t_bResult);
