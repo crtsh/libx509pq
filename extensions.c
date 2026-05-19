@@ -780,8 +780,7 @@ PG_FN(x509_altnames)
 				ASN1_OBJECT* t_oid;
 				char t_buffer[80];
 				(void)GENERAL_NAME_get0_otherName(
-					(GENERAL_NAME*)t_generalName, &t_oid,
-					NULL
+					t_generalName, &t_oid, NULL
 				);
 				OBJ_obj2txt(
 					t_buffer, sizeof t_buffer, t_oid, 1
@@ -930,7 +929,7 @@ PG_FN(x509_altnames_raw)
 			else if (t_generalName->type == GEN_OTHERNAME) {
 				ASN1_TYPE* t_asn1Type;
 				(void)GENERAL_NAME_get0_otherName(
-					(GENERAL_NAME*)t_generalName, &t_oid, &t_asn1Type
+					t_generalName, &t_oid, &t_asn1Type
 				);
 				t_length = ASN1_STRING_to_UTF8(
 					(unsigned char**)&t_utf8String,

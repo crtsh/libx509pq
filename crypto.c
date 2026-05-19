@@ -276,7 +276,7 @@ PG_FN(x509_signaturehashalgorithm)
 	X509* t_x509 = NULL;
 	SIGNATURE_ALGORITHM* t_sigAlg;
 	text* t_text = NULL;
-	char* t_string = g_error;
+	const char* t_string = g_error;
 	int t_iResult;
 	int t_sigAlgNID;
 	int t_sigHashAlgNID;
@@ -299,7 +299,7 @@ PG_FN(x509_signaturehashalgorithm)
 	/* Get the signature's hash algorithm name */
 	t_name = hash_alg_name(t_sigHashAlgNID);
 	if (t_name)
-		t_string = (char*)t_name;
+		t_string = t_name;
 
 label_return:
 	t_text = text_from_cstring_len(t_string, strlen(t_string));
@@ -319,7 +319,7 @@ PG_FN(x509_signaturekeyalgorithm)
 	X509* t_x509 = NULL;
 	SIGNATURE_ALGORITHM* t_sigAlg;
 	text* t_text = NULL;
-	char* t_string = g_error;
+	const char* t_string = g_error;
 	int t_iResult;
 	int t_sigAlgNID;
 	int t_sigHashAlgNID;
@@ -342,7 +342,7 @@ PG_FN(x509_signaturekeyalgorithm)
 	/* Get the signature's key algorithm name */
 	t_name = pkey_alg_name(t_sigKeyAlgNID);
 	if (t_name)
-		t_string = (char*)t_name;
+		t_string = t_name;
 
 label_return:
 	t_text = text_from_cstring_len(t_string, strlen(t_string));
