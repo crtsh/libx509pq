@@ -268,6 +268,13 @@ static inline text* text_from_bio(
 		}                                                       \
 	} while (0)
 
+/* Shorthand for the V1-calling-convention prologue every SQL-callable
+  function needs. Expands to PG_FUNCTION_INFO_V1(name); Datum name(...).
+  The function body follows in the usual { ... } block. */
+#define PG_FN(name)                                                     \
+	PG_FUNCTION_INFO_V1(name);                                      \
+	Datum name(PG_FUNCTION_ARGS)
+
 
 #define ROCA_PRINTS_LENGTH	17
 static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
@@ -505,10 +512,7 @@ static int ASN1_TIME_parse(
 /******************************************************************************
  * x509_issuername()                                                          *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_issuername);
-Datum x509_issuername(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_issuername)
 {
 	X509* t_x509 = NULL;
 	BIO* t_bio;
@@ -547,10 +551,7 @@ Datum x509_issuername(
 /******************************************************************************
  * x509_keyalgorithm()                                                        *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_keyalgorithm);
-Datum x509_keyalgorithm(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_keyalgorithm)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
@@ -609,10 +610,7 @@ label_return:
 /******************************************************************************
  * x509_keysize()                                                             *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_keysize);
-Datum x509_keysize(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_keysize)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
@@ -635,10 +633,7 @@ Datum x509_keysize(
 /******************************************************************************
  * x509_notafter()                                                            *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_notafter);
-Datum x509_notafter(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_notafter)
 {
 	X509* t_x509 = NULL;
 	Timestamp t_timestamp = 0;
@@ -665,10 +660,7 @@ Datum x509_notafter(
 /******************************************************************************
  * x509_notbefore()                                                           *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_notbefore);
-Datum x509_notbefore(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_notbefore)
 {
 	X509* t_x509 = NULL;
 	Timestamp t_timestamp = 0;
@@ -695,10 +687,7 @@ Datum x509_notbefore(
 /******************************************************************************
  * x509_publickeymd5()                                                        *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_publickeymd5);
-Datum x509_publickeymd5(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_publickeymd5)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
@@ -738,10 +727,7 @@ label_error:
 /******************************************************************************
  * x509_publickey()                                                           *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_publickey);
-Datum x509_publickey(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_publickey)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
@@ -786,10 +772,7 @@ label_error:
 /******************************************************************************
  * x509_rsamodulus()                                                          *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_rsamodulus);
-Datum x509_rsamodulus(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_rsamodulus)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
@@ -830,10 +813,7 @@ label_error:
 /******************************************************************************
  * x509_serialnumber()                                                        *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_serialnumber);
-Datum x509_serialnumber(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_serialnumber)
 {
 	X509* t_x509 = NULL;
 	ASN1_INTEGER* t_asn1Integer;
@@ -866,10 +846,7 @@ Datum x509_serialnumber(
 /******************************************************************************
  * x509_signaturehashalgorithm()                                              *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_signaturehashalgorithm);
-Datum x509_signaturehashalgorithm(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_signaturehashalgorithm)
 {
 	X509* t_x509 = NULL;
 	SIGNATURE_ALGORITHM* t_sigAlg;
@@ -915,10 +892,7 @@ label_return:
 /******************************************************************************
  * x509_signaturekeyalgorithm()                                               *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_signaturekeyalgorithm);
-Datum x509_signaturekeyalgorithm(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_signaturekeyalgorithm)
 {
 	X509* t_x509 = NULL;
 	SIGNATURE_ALGORITHM* t_sigAlg;
@@ -964,10 +938,7 @@ label_return:
 /******************************************************************************
  * x509_subjectname()                                                         *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_subjectname);
-Datum x509_subjectname(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_subjectname)
 {
 	X509* t_x509 = NULL;
 	BIO* t_bio;
@@ -1006,10 +977,7 @@ Datum x509_subjectname(
 /******************************************************************************
  * x509_name()                                                                *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_name);
-Datum x509_name(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_name)
 {
 	X509* t_x509 = NULL;
 	X509_NAME* t_x509Name = NULL;
@@ -1052,10 +1020,7 @@ label_error:
 /******************************************************************************
  * x509_name_print()                                                                *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_name_print);
-Datum x509_name_print(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_name_print)
 {
 	X509_NAME* t_x509Name = NULL;
 	BIO* t_bio;
@@ -1099,10 +1064,7 @@ Datum x509_name_print(
 /******************************************************************************
  * x509_commonname()                                                          *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_commonname);
-Datum x509_commonname(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_commonname)
 {
 	X509* t_x509 = NULL;
 	X509_NAME_ENTRY* t_nameEntry;
@@ -1146,10 +1108,7 @@ Datum x509_commonname(
 /******************************************************************************
  * x509_subjectkeyidentifier()                                                *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_subjectkeyidentifier);
-Datum x509_subjectkeyidentifier(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_subjectkeyidentifier)
 {
 	X509* t_x509 = NULL;
 	ASN1_OCTET_STRING* t_asn1OctetString;
@@ -1185,10 +1144,7 @@ Datum x509_subjectkeyidentifier(
 /******************************************************************************
  * x509_authoritykeyid()                                                      *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_authoritykeyid);
-Datum x509_authoritykeyid(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_authoritykeyid)
 {
 	X509* t_x509 = NULL;
 	AUTHORITY_KEYID* t_authorityKeyIdentifier;
@@ -1230,10 +1186,7 @@ typedef struct tExtKeyUsageCtx_st{
 /******************************************************************************
  * x509_extkeyusages()                                                        *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_extkeyusages);
-Datum x509_extkeyusages(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_extkeyusages)
 {
 	ASN1_OBJECT* t_ekuOID;
 	tExtKeyUsageCtx* t_extKeyUsageCtx;
@@ -1304,10 +1257,7 @@ Datum x509_extkeyusages(
 /******************************************************************************
  * x509_isekupermitted()                                                      *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_isekupermitted);
-Datum x509_isekupermitted(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_isekupermitted)
 {
 	X509* t_x509 = NULL;
 	EXTENDED_KEY_USAGE* t_extendedKeyUsage;
@@ -1377,10 +1327,7 @@ typedef struct tCertPoliciesCtx_st{
 /******************************************************************************
  * x509_certpolicies()                                                        *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_certpolicies);
-Datum x509_certpolicies(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_certpolicies)
 {
 	POLICYINFO* t_policyInfo;
 	tCertPoliciesCtx* t_certPoliciesCtx;
@@ -1451,10 +1398,7 @@ Datum x509_certpolicies(
 /******************************************************************************
  * x509_ispolicypermitted()                                                   *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_ispolicypermitted);
-Datum x509_ispolicypermitted(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_ispolicypermitted)
 {
 	X509* t_x509 = NULL;
 	CERTIFICATEPOLICIES* t_certificatePolicies;
@@ -1521,10 +1465,7 @@ Datum x509_ispolicypermitted(
 /******************************************************************************
  * x509_canissuecerts()                                                       *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_canissuecerts);
-Datum x509_canissuecerts(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_canissuecerts)
 {
 	X509* t_x509 = NULL;
 	BASIC_CONSTRAINTS* t_basicConstraints;
@@ -1641,10 +1582,7 @@ Datum x509_canissuecerts(
 /******************************************************************************
  * x509_getpathlenconstraint()                                                *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_getpathlenconstraint);
-Datum x509_getpathlenconstraint(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_getpathlenconstraint)
 {
 	X509* t_x509 = NULL;
 	BASIC_CONSTRAINTS* t_basicConstraints;
@@ -1758,10 +1696,7 @@ typedef struct tX509NameCtx_st{
 /******************************************************************************
  * x509_nameattributes()                                                      *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_nameattributes);
-Datum x509_nameattributes(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_nameattributes)
 {
 	tX509NameCtx* t_x509NameCtx;
 	FuncCallContext* t_funcCtx;
@@ -1895,10 +1830,7 @@ typedef struct tNameAttributesRawCtx_st{
 /******************************************************************************
  * x509_nameattributes_raw()                                                  *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_nameattributes_raw);
-Datum x509_nameattributes_raw(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_nameattributes_raw)
 {
 	tNameAttributesRawCtx* t_nameAttributesRawCtx;
 	FuncCallContext* t_funcCtx;
@@ -2019,10 +1951,7 @@ typedef struct tAltNamesCtx_st{
 /******************************************************************************
  * x509_altnames()                                                            *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_altnames);
-Datum x509_altnames(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_altnames)
 {
 	tAltNamesCtx* t_altNamesCtx;
 	FuncCallContext* t_funcCtx;
@@ -2237,10 +2166,7 @@ typedef struct tAltNamesRawCtx_st{
 /******************************************************************************
  * x509_altnames_raw()                                                        *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_altnames_raw);
-Datum x509_altnames_raw(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_altnames_raw)
 {
 	tAltNamesRawCtx* t_altNamesRawCtx;
 	FuncCallContext* t_funcCtx;
@@ -2434,10 +2360,7 @@ typedef struct tCRLDistributionPointsCtx_st{
 /******************************************************************************
  * x509_crldistributionpoints()                                               *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_crldistributionpoints);
-Datum x509_crldistributionpoints(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_crldistributionpoints)
 {
 	DIST_POINT* t_distPoint;
 	tCRLDistributionPointsCtx* t_cRLDistributionPointsCtx;
@@ -2537,10 +2460,7 @@ typedef struct tAuthorityInfoAccessCtx_st{
 /******************************************************************************
  * x509_authorityinfoaccess()                                                 *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_authorityinfoaccess);
-Datum x509_authorityinfoaccess(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_authorityinfoaccess)
 {
 	ACCESS_DESCRIPTION* t_accessDescription;
 	tAuthorityInfoAccessCtx* t_authorityInfoAccessCtx;
@@ -2644,10 +2564,7 @@ Datum x509_authorityinfoaccess(
 /******************************************************************************
  * x509_print()                                                               *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_print);
-Datum x509_print(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_print)
 {
 	X509* t_x509 = NULL;
 	text* t_text = NULL;
@@ -2690,10 +2607,7 @@ Datum x509_print(
 /******************************************************************************
  * x509_verify()                                                              *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_verify);
-Datum x509_verify(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_verify)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
@@ -2723,10 +2637,7 @@ Datum x509_verify(
 /******************************************************************************
  * x509_anynameswithnuls()                                                    *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_anynameswithnuls);
-Datum x509_anynameswithnuls(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_anynameswithnuls)
 {
 	X509* t_x509 = NULL;
 	X509_NAME* t_name;
@@ -2842,10 +2753,7 @@ typedef struct tExtensionsCtx_st{
 /******************************************************************************
  * X509_extensions()                                                          *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_extensions);
-Datum x509_extensions(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_extensions)
 {
 	X509_EXTENSION* t_extension;
 	ASN1_OBJECT* t_extensionOID;
@@ -2918,10 +2826,7 @@ Datum x509_extensions(
 /******************************************************************************
  * X509_hasextension()                                                        *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_hasextension);
-Datum x509_hasextension(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_hasextension)
 {
 	X509* t_x509 = NULL;
 	ASN1_OBJECT* t_extnObj = NULL;
@@ -2968,10 +2873,7 @@ label_done:
 /******************************************************************************
  * x509_tbscert_strip_ct_ext()                                                *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_tbscert_strip_ct_ext);
-Datum x509_tbscert_strip_ct_ext(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_tbscert_strip_ct_ext)
 {
 	X509* t_x509 = NULL;
 	bytea* t_bytea = PG_GETARG_BYTEA_PP(0);
@@ -3030,10 +2932,7 @@ static int BN_bitand_is_zero(
 /******************************************************************************
  * x509_hasrocafingerprint()                                                  *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_hasrocafingerprint);
-Datum x509_hasrocafingerprint(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_hasrocafingerprint)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
@@ -3195,10 +3094,7 @@ label_return:
 /******************************************************************************
  * x509_hasrocafingerprint()                                                  *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_hascloseprimes);
-Datum x509_hascloseprimes(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_hascloseprimes)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
@@ -3259,10 +3155,7 @@ label_return:
 /******************************************************************************
  * ocspresponse_print()                                                       *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(ocspresponse_print);
-Datum ocspresponse_print(
-	PG_FUNCTION_ARGS
-)
+PG_FN(ocspresponse_print)
 {
 	OCSP_RESPONSE* t_ocspResponse = NULL;
 	bytea* t_bytea = NULL;
@@ -3307,10 +3200,7 @@ Datum ocspresponse_print(
  *   x509_issuerName/x509_subjectName/x509_notBefore/... functions but with   *
  *   a single d2i_X509() and a single X509_get_pubkey().                      *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509_basic_info);
-Datum x509_basic_info(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509_basic_info)
 {
 	#define X509_BASIC_INFO_NFIELDS 12
 	TupleDesc t_tupleDesc;
@@ -3586,10 +3476,7 @@ static int chars_to_not_encode[] = {
  * urlencode()                                                                *
  *   Adapted from https://github.com/pramsey/pgsql-http/blob/master/http.c    *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(urlencode);
-Datum urlencode(
-	PG_FUNCTION_ARGS
-)
+PG_FN(urlencode)
 {
 	text *txt = PG_GETARG_TEXT_P(0); /* Declare strict, so no test for NULL input */
 	size_t txt_size = VARSIZE(txt) - VARHDRSZ;
@@ -3639,10 +3526,7 @@ Datum urlencode(
 /******************************************************************************
  * urldecode()                                                                *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(urldecode);
-Datum urldecode(
-	PG_FUNCTION_ARGS
-)
+PG_FN(urldecode)
 {
 	text *txt = PG_GETARG_TEXT_P(0); /* Declare strict, so no test for NULL input */
 	size_t txt_size = VARSIZE(txt) - VARHDRSZ;
@@ -3691,10 +3575,7 @@ Datum urldecode(
 /******************************************************************************
  * x509pq_opensslVersion()                                                    *
  ******************************************************************************/
-PG_FUNCTION_INFO_V1(x509pq_opensslversion);
-Datum x509pq_opensslversion(
-	PG_FUNCTION_ARGS
-)
+PG_FN(x509pq_opensslversion)
 {
 	const char* t_version = SSLeay_version(SSLEAY_VERSION);
 	PG_RETURN_TEXT_P(text_from_cstring_len(t_version, strlen(t_version)));
