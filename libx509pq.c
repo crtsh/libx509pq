@@ -193,6 +193,13 @@ static const tAlgorithm g_pkeyAlgorithms[] = {
 
 static char g_error[] = "ERROR!";
 
+/* Process-global state initialised once in _PG_init() and torn down in
+  _PG_fini(). PostgreSQL spawns a separate OS process per backend and a
+  backend is single-threaded, so no locking is required around these
+  globals: each backend has its own private copy, and within a backend
+  only one SQL function executes at a time. Do NOT add lazy
+  (re)initialisation from SQL-callable functions; _PG_init() is the sole
+  initialisation point. */
 static ENGINE* g_gostEngine = NULL;
 
 
@@ -294,6 +301,11 @@ static inline text* text_from_bio(
 	MemoryContextSwitchTo(_oldMemCtx)
 
 
+/* ROCA (CVE-2017-15361) fingerprint primes and discriminator bitmasks.
+  Both arrays are process-global state — see the note next to
+  g_gostEngine above. g_primes[] is compile-time constant; g_prints[] is
+  populated once in _PG_init() via rocacheck_init() and freed in
+  _PG_fini() via rocacheck_cleanup(). */
 #define ROCA_PRINTS_LENGTH	17
 static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
 	11, 13, 17, 19, 37, 53, 61, 71, 73, 79, 97, 103, 107, 109, 127, 151, 157
@@ -305,7 +317,6 @@ static BIGNUM* g_prints[ROCA_PRINTS_LENGTH];
  ******************************************************************************/
 static void rocacheck_init()
 {
-	memset(g_prints, '\0', sizeof(BIGNUM*) * ROCA_PRINTS_LENGTH);
 	(void)BN_dec2bn(&g_prints[0], "1026");
 	(void)BN_dec2bn(&g_prints[1], "5658");
 	(void)BN_dec2bn(&g_prints[2], "107286");
