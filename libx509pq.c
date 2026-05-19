@@ -155,40 +155,45 @@ static const unsigned char g_rootSGCAuthority_sig[] = {
 	0xe1, 0x4c, 0x8e, 0xee
 };
 
-/* Algorithm names */
-typedef struct tAlgorithm {
-	int m_nid;
-	char* m_name;
-} tAlgorithm;
+/* Human-readable name for an OpenSSL hash NID, or NULL if not
+  recognised. NIDs are small non-contiguous integer constants, so the
+  compiler typically turns this into a jump table or binary search. */
+static const char* hash_alg_name(int nid)
+{
+	switch (nid) {
+		case NID_md2:			return "MD2";
+		case NID_md4:			return "MD4";
+		case NID_md5:			return "MD5";
+		case NID_sha:			return "SHA";
+		case NID_sha1:			return "SHA-1";
+		case NID_sha224:		return "SHA-224";
+		case NID_sha256:		return "SHA-256";
+		case NID_sha384:		return "SHA-384";
+		case NID_sha512:		return "SHA-512";
+		case NID_ripemd160:		return "RIPEMD-160";
+		case NID_mdc2:			return "MDC-2";
+		case NID_id_GostR3411_94:	return "GOST R 34.11-94";
+		default:			return NULL;
+	}
+}
 
-/* Hash Algorithm Names */
-static const tAlgorithm g_hashAlgorithms[] = {
-	{ NID_md2, "MD2" },
-	{ NID_md4, "MD4" },
-	{ NID_md5, "MD5" },
-	{ NID_sha, "SHA" },
-	{ NID_sha1, "SHA-1" },
-	{ NID_sha224, "SHA-224" },
-	{ NID_sha256, "SHA-256" },
-	{ NID_sha384, "SHA-384" },
-	{ NID_sha512, "SHA-512" },
-	{ NID_ripemd160, "RIPEMD-160" },
-	{ NID_mdc2, "MDC-2" },
-	{ NID_id_GostR3411_94, "GOST R 34.11-94" }
-};
-
-/* Public Key Algorithm Names */
-static const tAlgorithm g_pkeyAlgorithms[] = {
-	{ NID_rsaEncryption, "RSA" },
-	{ NID_rsa, "RSA" },
-	{ NID_dsa, "DSA" },
-	{ NID_dsa_2, "DSA" },
-	{ NID_X9_62_id_ecPublicKey, "ECDSA" },
-	{ NID_id_GostR3410_94, "GOST R 34.10-94" },
-	{ NID_id_GostR3410_94_cc, "GOST 34.10-94 Cryptocom" },
-	{ NID_id_GostR3410_2001, "GOST R 34.10-2001" },
-	{ NID_id_GostR3410_2001_cc, "GOST 34.10-2001 Cryptocom" }
-};
+/* Human-readable name for an OpenSSL public-key NID, or NULL if not
+  recognised. */
+static const char* pkey_alg_name(int nid)
+{
+	switch (nid) {
+		case NID_rsaEncryption:
+		case NID_rsa:			return "RSA";
+		case NID_dsa:
+		case NID_dsa_2:			return "DSA";
+		case NID_X9_62_id_ecPublicKey:	return "ECDSA";
+		case NID_id_GostR3410_94:	return "GOST R 34.10-94";
+		case NID_id_GostR3410_94_cc:	return "GOST 34.10-94 Cryptocom";
+		case NID_id_GostR3410_2001:	return "GOST R 34.10-2001";
+		case NID_id_GostR3410_2001_cc:	return "GOST 34.10-2001 Cryptocom";
+		default:			return NULL;
+	}
+}
 
 
 static char g_error[] = "ERROR!";
@@ -894,7 +899,7 @@ PG_FN(x509_signaturehashalgorithm)
 	int t_sigAlgNID;
 	int t_sigHashAlgNID;
 	int t_sigKeyAlgNID;
-	int l_algNo;
+	const char* t_name;
 
 	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
@@ -910,12 +915,9 @@ PG_FN(x509_signaturehashalgorithm)
 		goto label_return;
 
 	/* Get the signature's hash algorithm name */
-	for (l_algNo = 0; l_algNo < (sizeof(g_hashAlgorithms)
-					/ sizeof(tAlgorithm)); l_algNo++)
-		if (g_hashAlgorithms[l_algNo].m_nid == t_sigHashAlgNID) {
-			t_string = g_hashAlgorithms[l_algNo].m_name;
-			break;
-		}
+	t_name = hash_alg_name(t_sigHashAlgNID);
+	if (t_name)
+		t_string = (char*)t_name;
 
 label_return:
 	t_text = text_from_cstring_len(t_string, strlen(t_string));
@@ -940,7 +942,7 @@ PG_FN(x509_signaturekeyalgorithm)
 	int t_sigAlgNID;
 	int t_sigHashAlgNID;
 	int t_sigKeyAlgNID;
-	int l_algNo;
+	const char* t_name;
 
 	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
@@ -956,12 +958,9 @@ PG_FN(x509_signaturekeyalgorithm)
 		goto label_return;
 
 	/* Get the signature's key algorithm name */
-	for (l_algNo = 0; l_algNo < (sizeof(g_pkeyAlgorithms)
-					/ sizeof(tAlgorithm)); l_algNo++)
-		if (g_pkeyAlgorithms[l_algNo].m_nid == t_sigKeyAlgNID) {
-			t_string = g_pkeyAlgorithms[l_algNo].m_name;
-			break;
-		}
+	t_name = pkey_alg_name(t_sigKeyAlgNID);
+	if (t_name)
+		t_string = (char*)t_name;
 
 label_return:
 	t_text = text_from_cstring_len(t_string, strlen(t_string));
@@ -3277,38 +3276,23 @@ PG_FN(x509_basic_info)
 	{
 		SIGNATURE_ALGORITHM* t_sa;
 		int t_sigNID, t_hashNID, t_pkeyNID;
-		size_t l_algNo;
 		X509_GET_SIGALGNID(&t_sa, t_x509);
 		t_sigNID = OBJ_obj2nid(t_sa->algorithm);
 		if (OBJ_find_sigid_algs(t_sigNID, &t_hashNID, &t_pkeyNID)) {
-			for (l_algNo = 0;
-				l_algNo < (sizeof(g_hashAlgorithms)
-						/ sizeof(tAlgorithm));
-				l_algNo++)
-				if (g_hashAlgorithms[l_algNo].m_nid
-								== t_hashNID) {
-					const char* s =
-						g_hashAlgorithms[l_algNo].m_name;
-					t_values[8] = PointerGetDatum(
-						text_from_cstring_len(s, strlen(s))
-					);
-					t_nulls[8] = false;
-					break;
-				}
-			for (l_algNo = 0;
-				l_algNo < (sizeof(g_pkeyAlgorithms)
-						/ sizeof(tAlgorithm));
-				l_algNo++)
-				if (g_pkeyAlgorithms[l_algNo].m_nid
-								== t_pkeyNID) {
-					const char* s =
-						g_pkeyAlgorithms[l_algNo].m_name;
-					t_values[9] = PointerGetDatum(
-						text_from_cstring_len(s, strlen(s))
-					);
-					t_nulls[9] = false;
-					break;
-				}
+			const char* s = hash_alg_name(t_hashNID);
+			if (s) {
+				t_values[8] = PointerGetDatum(
+					text_from_cstring_len(s, strlen(s))
+				);
+				t_nulls[8] = false;
+			}
+			s = pkey_alg_name(t_pkeyNID);
+			if (s) {
+				t_values[9] = PointerGetDatum(
+					text_from_cstring_len(s, strlen(s))
+				);
+				t_nulls[9] = false;
+			}
 		}
 	}
 
