@@ -275,6 +275,24 @@ static inline text* text_from_bio(
 	PG_FUNCTION_INFO_V1(name);                                      \
 	Datum name(PG_FUNCTION_ARGS)
 
+/* SRF firstcall boilerplate: enters the multi-call memory context and
+  allocates a zero-initialised per-call context struct. Use only inside an
+  `if (SRF_IS_FIRSTCALL()) { ... }` block. Requires `t_funcCtx` to be
+  declared in the enclosing function; sets it and the supplied ctx_var
+  pointer. Must be paired with SRF_FIRSTCALL_END() before leaving the
+  block. */
+#define SRF_FIRSTCALL_BEGIN(ctx_type, ctx_var)                          \
+	MemoryContext _oldMemCtx;                                       \
+	t_funcCtx = SRF_FIRSTCALL_INIT();                               \
+	_oldMemCtx = MemoryContextSwitchTo(                             \
+		t_funcCtx->multi_call_memory_ctx                        \
+	);                                                              \
+	t_funcCtx->user_fctx = (ctx_var) = palloc0(sizeof(ctx_type))
+
+/* Restore the memory context entered by SRF_FIRSTCALL_BEGIN. */
+#define SRF_FIRSTCALL_END()                                             \
+	MemoryContextSwitchTo(_oldMemCtx)
+
 
 #define ROCA_PRINTS_LENGTH	17
 static unsigned char g_primes[ROCA_PRINTS_LENGTH] = {
@@ -1194,23 +1212,9 @@ PG_FN(x509_extkeyusages)
 
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
-		MemoryContext t_oldMemoryCtx;
 
-		/* Create a function context for cross-call persistence */
-		t_funcCtx = SRF_FIRSTCALL_INIT();
-		/* Switch to memory context appropriate for multiple function
-		  calls */
-		t_oldMemoryCtx = MemoryContextSwitchTo(
-			t_funcCtx->multi_call_memory_ctx
-		);
+		SRF_FIRSTCALL_BEGIN(tExtKeyUsageCtx, t_extKeyUsageCtx);
 
-		/* Allocate memory for our user-defined structure and initialize
-		  it */
-		t_funcCtx->user_fctx = t_extKeyUsageCtx
-					= palloc(sizeof(tExtKeyUsageCtx));
-		memset(t_extKeyUsageCtx, '\0', sizeof(tExtKeyUsageCtx));
-
-		/* One-time setup code */
 		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_extKeyUsageCtx->m_extKeyUsages = X509_get_ext_d2i(
@@ -1219,7 +1223,7 @@ PG_FN(x509_extkeyusages)
 			X509_free(t_x509);
 		}
 
-		MemoryContextSwitchTo(t_oldMemoryCtx);
+		SRF_FIRSTCALL_END();
 	}
 
 	/* Each-time setup code */
@@ -1335,23 +1339,9 @@ PG_FN(x509_certpolicies)
 
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
-		MemoryContext t_oldMemoryCtx;
 
-		/* Create a function context for cross-call persistence */
-		t_funcCtx = SRF_FIRSTCALL_INIT();
-		/* Switch to memory context appropriate for multiple function
-		  calls */
-		t_oldMemoryCtx = MemoryContextSwitchTo(
-			t_funcCtx->multi_call_memory_ctx
-		);
+		SRF_FIRSTCALL_BEGIN(tCertPoliciesCtx, t_certPoliciesCtx);
 
-		/* Allocate memory for our user-defined structure and initialize
-		  it */
-		t_funcCtx->user_fctx = t_certPoliciesCtx
-					= palloc(sizeof(tCertPoliciesCtx));
-		memset(t_certPoliciesCtx, '\0', sizeof(tCertPoliciesCtx));
-
-		/* One-time setup code */
 		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_certPoliciesCtx->m_certPolicies = X509_get_ext_d2i(
@@ -1360,7 +1350,7 @@ PG_FN(x509_certpolicies)
 			X509_free(t_x509);
 		}
 
-		MemoryContextSwitchTo(t_oldMemoryCtx);
+		SRF_FIRSTCALL_END();
 	}
 
 	/* Each-time setup code */
@@ -1702,24 +1692,9 @@ PG_FN(x509_nameattributes)
 	FuncCallContext* t_funcCtx;
 
 	if (SRF_IS_FIRSTCALL()) {
-		MemoryContext t_oldMemoryCtx;
-
-		/* Create a function context for cross-call persistence */
-		t_funcCtx = SRF_FIRSTCALL_INIT();
-		/* Switch to memory context appropriate for multiple function
-		  calls */
-		t_oldMemoryCtx = MemoryContextSwitchTo(
-			t_funcCtx->multi_call_memory_ctx
-		);
-
-		/* Allocate memory for our user-defined structure and initialize
-		  it */
-		t_funcCtx->user_fctx = t_x509NameCtx
-						= palloc(sizeof(tX509NameCtx));
-		memset(t_x509NameCtx, '\0', sizeof(tX509NameCtx));
+		SRF_FIRSTCALL_BEGIN(tX509NameCtx, t_x509NameCtx);
 		t_x509NameCtx->m_nid = NID_X509;
 
-		/* One-time setup code */
 		X509_FROM_BYTEA_ARG_OR_NULL(t_x509NameCtx->m_x509, 0);
 		if (t_x509NameCtx->m_x509) {
 			if (PG_GETARG_BOOL(2))
@@ -1741,7 +1716,7 @@ PG_FN(x509_nameattributes)
 			t_x509NameCtx->m_nid = OBJ_txt2nid(t_oidName);
 		}
 
-		MemoryContextSwitchTo(t_oldMemoryCtx);
+		SRF_FIRSTCALL_END();
 	}
 
 	/* Each-time setup code */
@@ -1837,21 +1812,7 @@ PG_FN(x509_nameattributes_raw)
 	TupleDesc t_tupleDesc;
 
 	if (SRF_IS_FIRSTCALL()) {
-		MemoryContext t_oldMemoryCtx;
-
-		/* Create a function context for cross-call persistence */
-		t_funcCtx = SRF_FIRSTCALL_INIT();
-		/* Switch to memory context appropriate for multiple function
-		  calls */
-		t_oldMemoryCtx = MemoryContextSwitchTo(
-			t_funcCtx->multi_call_memory_ctx
-		);
-
-		/* Allocate memory for our user-defined structure and initialize
-		  it */
-		t_funcCtx->user_fctx = t_nameAttributesRawCtx
-					= palloc(sizeof(tNameAttributesRawCtx));
-		memset(t_nameAttributesRawCtx, '\0', sizeof(tNameAttributesRawCtx));
+		SRF_FIRSTCALL_BEGIN(tNameAttributesRawCtx, t_nameAttributesRawCtx);
 
 		/* Build a tuple descriptor for our result type */
 		if (get_call_result_type(fcinfo, NULL, &t_tupleDesc) != TYPEFUNC_COMPOSITE)
@@ -1865,7 +1826,6 @@ PG_FN(x509_nameattributes_raw)
 		t_nameAttributesRawCtx->m_nulls = (bool*)palloc((t_tupleDesc->natts) * sizeof(bool));
 		memset(t_nameAttributesRawCtx->m_nulls, true, (t_tupleDesc->natts) * sizeof(bool));
 
-		/* One-time setup code */
 		X509_FROM_BYTEA_ARG_OR_NULL(t_nameAttributesRawCtx->m_x509, 0);
 		if (t_nameAttributesRawCtx->m_x509) {
 			if (PG_GETARG_BOOL(1))
@@ -1878,7 +1838,7 @@ PG_FN(x509_nameattributes_raw)
 				);
 		}
 
-		MemoryContextSwitchTo(t_oldMemoryCtx);
+		SRF_FIRSTCALL_END();
 	}
 
 	/* Each-time setup code */
@@ -1958,23 +1918,9 @@ PG_FN(x509_altnames)
 
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
-		MemoryContext t_oldMemoryCtx;
 
-		/* Create a function context for cross-call persistence */
-		t_funcCtx = SRF_FIRSTCALL_INIT();
-		/* Switch to memory context appropriate for multiple function
-		  calls */
-		t_oldMemoryCtx = MemoryContextSwitchTo(
-			t_funcCtx->multi_call_memory_ctx
-		);
+		SRF_FIRSTCALL_BEGIN(tAltNamesCtx, t_altNamesCtx);
 
-		/* Allocate memory for our user-defined structure and initialize
-		  it */
-		t_funcCtx->user_fctx = t_altNamesCtx
-						= palloc(sizeof(tAltNamesCtx));
-		memset(t_altNamesCtx, '\0', sizeof(tAltNamesCtx));
-
-		/* One-time setup code */
 		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			if (PG_GETARG_BOOL(2))
@@ -2006,7 +1952,7 @@ PG_FN(x509_altnames)
 		else
 			t_altNamesCtx->m_type = -1;
 
-		MemoryContextSwitchTo(t_oldMemoryCtx);
+		SRF_FIRSTCALL_END();
 	}
 
 	/* Each-time setup code */
@@ -2174,21 +2120,8 @@ PG_FN(x509_altnames_raw)
 
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
-		MemoryContext t_oldMemoryCtx;
 
-		/* Create a function context for cross-call persistence */
-		t_funcCtx = SRF_FIRSTCALL_INIT();
-		/* Switch to memory context appropriate for multiple function
-		  calls */
-		t_oldMemoryCtx = MemoryContextSwitchTo(
-			t_funcCtx->multi_call_memory_ctx
-		);
-
-		/* Allocate memory for our user-defined structure and initialize
-		  it */
-		t_funcCtx->user_fctx = t_altNamesRawCtx
-					= palloc(sizeof(tAltNamesRawCtx));
-		memset(t_altNamesRawCtx, '\0', sizeof(tAltNamesRawCtx));
+		SRF_FIRSTCALL_BEGIN(tAltNamesRawCtx, t_altNamesRawCtx);
 
 		/* Build a tuple descriptor for our result type */
 		if (get_call_result_type(fcinfo, NULL, &t_tupleDesc) != TYPEFUNC_COMPOSITE)
@@ -2202,7 +2135,6 @@ PG_FN(x509_altnames_raw)
 		t_altNamesRawCtx->m_nulls = (bool*)palloc((t_tupleDesc->natts) * sizeof(bool));
 		memset(t_altNamesRawCtx->m_nulls, true, (t_tupleDesc->natts) * sizeof(bool));
 
-		/* One-time setup code */
 		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_altNamesRawCtx->m_genNames = X509_get_ext_d2i(
@@ -2215,7 +2147,7 @@ PG_FN(x509_altnames_raw)
 			X509_free(t_x509);
 		}
 
-		MemoryContextSwitchTo(t_oldMemoryCtx);
+		SRF_FIRSTCALL_END();
 	}
 
 	/* Each-time setup code */
@@ -2368,24 +2300,10 @@ PG_FN(x509_crldistributionpoints)
 
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
-		MemoryContext t_oldMemoryCtx;
 
-		/* Create a function context for cross-call persistence */
-		t_funcCtx = SRF_FIRSTCALL_INIT();
-		/* Switch to memory context appropriate for multiple function
-		  calls */
-		t_oldMemoryCtx = MemoryContextSwitchTo(
-			t_funcCtx->multi_call_memory_ctx
-		);
+		SRF_FIRSTCALL_BEGIN(tCRLDistributionPointsCtx,
+				t_cRLDistributionPointsCtx);
 
-		/* Allocate memory for our user-defined structure and initialize
-		  it */
-		t_funcCtx->user_fctx = t_cRLDistributionPointsCtx
-				= palloc(sizeof(tCRLDistributionPointsCtx));
-		memset(t_cRLDistributionPointsCtx, '\0',
-			sizeof(tCRLDistributionPointsCtx));
-
-		/* One-time setup code */
 		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_cRLDistributionPointsCtx->m_cRLDistributionPoints
@@ -2396,7 +2314,7 @@ PG_FN(x509_crldistributionpoints)
 			X509_free(t_x509);
 		}
 
-		MemoryContextSwitchTo(t_oldMemoryCtx);
+		SRF_FIRSTCALL_END();
 	}
 
 	/* Each-time setup code */
@@ -2468,24 +2386,10 @@ PG_FN(x509_authorityinfoaccess)
 
 	if (SRF_IS_FIRSTCALL()) {
 		X509* t_x509 = NULL;
-		MemoryContext t_oldMemoryCtx;
 
-		/* Create a function context for cross-call persistence */
-		t_funcCtx = SRF_FIRSTCALL_INIT();
-		/* Switch to memory context appropriate for multiple function
-		  calls */
-		t_oldMemoryCtx = MemoryContextSwitchTo(
-			t_funcCtx->multi_call_memory_ctx
-		);
+		SRF_FIRSTCALL_BEGIN(tAuthorityInfoAccessCtx,
+				t_authorityInfoAccessCtx);
 
-		/* Allocate memory for our user-defined structure and initialize
-		  it */
-		t_funcCtx->user_fctx = t_authorityInfoAccessCtx
-				= palloc(sizeof(tAuthorityInfoAccessCtx));
-		memset(t_authorityInfoAccessCtx, '\0',
-			sizeof(tAuthorityInfoAccessCtx));
-
-		/* One-time setup code */
 		X509_FROM_BYTEA_ARG_OR_NULL(t_x509, 0);
 		if (t_x509) {
 			t_authorityInfoAccessCtx->m_authorityInfoAccess =
@@ -2506,7 +2410,7 @@ PG_FN(x509_authorityinfoaccess)
 				t_authorityInfoAccessCtx->m_type = -1;
 		}
 
-		MemoryContextSwitchTo(t_oldMemoryCtx);
+		SRF_FIRSTCALL_END();
 	}
 
 	/* Each-time setup code */
@@ -2761,23 +2665,8 @@ PG_FN(x509_extensions)
 	FuncCallContext* t_funcCtx;
 
 	if (SRF_IS_FIRSTCALL()) {
-		MemoryContext t_oldMemoryCtx;
+		SRF_FIRSTCALL_BEGIN(tExtensionsCtx, t_extensionsCtx);
 
-		/* Create a function context for cross-call persistence */
-		t_funcCtx = SRF_FIRSTCALL_INIT();
-		/* Switch to memory context appropriate for multiple function
-		  calls */
-		t_oldMemoryCtx = MemoryContextSwitchTo(
-			t_funcCtx->multi_call_memory_ctx
-		);
-
-		/* Allocate memory for our user-defined structure and initialize
-		  it */
-		t_funcCtx->user_fctx = t_extensionsCtx
-					= palloc(sizeof(tExtensionsCtx));
-		memset(t_extensionsCtx, '\0', sizeof(tExtensionsCtx));
-
-		/* One-time setup code */
 		X509_FROM_BYTEA_ARG_OR_NULL(t_extensionsCtx->m_x509, 0);
 		if (t_extensionsCtx->m_x509) {
 			t_extensionsCtx->m_extensions = X509_get0_extensions(
@@ -2785,7 +2674,7 @@ PG_FN(x509_extensions)
 			);
 		}
 
-		MemoryContextSwitchTo(t_oldMemoryCtx);
+		SRF_FIRSTCALL_END();
 	}
 
 	/* Each-time setup code */
