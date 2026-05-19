@@ -381,6 +381,15 @@ void _PG_init(void)
 
 /******************************************************************************
  * _PG_fini()                                                                 *
+ *                                                                            *
+ * NB: PostgreSQL never unloads loaded modules — see the comment above        *
+ * internal_load_library() in src/backend/utils/fmgr/dfmgr.c ("There is       *
+ * presently no way to unload a dynamically loaded file") — and modern PG     *
+ * does not even dlsym() this symbol. So this function is effectively dead    *
+ * code today; it is retained for documentation of intent and in case a       *
+ * future PG version starts honouring it. The OS reclaims process memory      *
+ * and OpenSSL ENGINE refcounts at backend exit either way, so the absence    *
+ * of these cleanups is not a leak in any meaningful sense.                   *
  ******************************************************************************/
 extern void _PG_fini(void);
 void _PG_fini(void)
