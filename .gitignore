@@ -3,3 +3,8 @@
 *.so.*
 *.bc
 *.d
+# pg_regress output
+test/results/
+test/regression.diffs
+test/regression.out
+test/log/
