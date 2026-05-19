@@ -735,6 +735,18 @@ PG_FN(x509_publickeymd5)
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
 	bytea* t_publicKeyMD5 = NULL;
+	const EVP_MD* t_md5 = EVP_md5();
+
+	if (!t_md5) {
+		/* OpenSSL built with OPENSSL_NO_MD5, or strict FIPS mode is
+		  active. MD5 is used here as a non-security fingerprint, but
+		  the algorithm is simply unavailable in this build. */
+		ereport(WARNING,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("x509_publicKeyMD5: MD5 is not available in this OpenSSL build"))
+		);
+		PG_RETURN_NULL();
+	}
 
 	X509_FROM_BYTEA_ARG(t_x509, 0);
 	if (!t_x509)
@@ -747,10 +759,15 @@ PG_FN(x509_publickeymd5)
 	t_publicKeyMD5 = palloc(VARHDRSZ + 16);
 	SET_VARSIZE(t_publicKeyMD5, VARHDRSZ + 16);
 
-	if (!X509_pubkey_digest(t_x509, EVP_md5(),
+	if (!X509_pubkey_digest(t_x509, t_md5,
 				(unsigned char*)t_publicKeyMD5 + VARHDRSZ,
-				NULL))
+				NULL)) {
+		ereport(WARNING,
+			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+			 errmsg("x509_publicKeyMD5: MD5 digest computation failed (MD5 may be disabled by FIPS policy)"))
+		);
 		goto label_error;
+	}
 
 	EVP_PKEY_free(t_publicKey);
 	X509_free(t_x509);
