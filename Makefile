@@ -1,5 +1,5 @@
 MODULE_big = libx509pq
-OBJS = libx509pq.o
+OBJS = libx509pq.o name.o extensions.o crypto.o basic_info.o
 EXTENSION = libx509pq
 DATA = libx509pq--1.1.sql libx509pq--1.0--1.1.sql
 REGRESS = basic
