@@ -2156,7 +2156,7 @@ Datum x509_altnames(
 								== 4)) {
 				/* IPv4 */
 				t_utf8String = OPENSSL_malloc(16);
-				sprintf(t_utf8String, "%d.%d.%d.%d",
+				snprintf(t_utf8String, 16, "%d.%d.%d.%d",
 					t_generalName->d.iPAddress->data[0],
 					t_generalName->d.iPAddress->data[1],
 					t_generalName->d.iPAddress->data[2],
@@ -2168,7 +2168,7 @@ Datum x509_altnames(
 								== 16)) {
 				/* IPv6 */
 				t_utf8String = OPENSSL_malloc(46);
-				sprintf(t_utf8String,
+				snprintf(t_utf8String, 46,
 					":%X:%X:%X:%X:%X:%X:%X:%X",
 					t_generalName->d.iPAddress->data[0] << 8
 						| t_generalName->d.iPAddress->data[1],
@@ -2326,8 +2326,8 @@ Datum x509_altnames_raw(
 				if (t_generalName->d.iPAddress->length == 4) {
 					/* IPv4 */
 					t_utf8String = OPENSSL_malloc(16);
-					t_length = sprintf(
-						t_utf8String, "%d.%d.%d.%d",
+					t_length = snprintf(
+						t_utf8String, 16, "%d.%d.%d.%d",
 						t_generalName->d.iPAddress->data[0],
 						t_generalName->d.iPAddress->data[1],
 						t_generalName->d.iPAddress->data[2],
@@ -2337,8 +2337,8 @@ Datum x509_altnames_raw(
 				else if (t_generalName->d.iPAddress->length == 16) {
 					/* IPv6 */
 					t_utf8String = OPENSSL_malloc(46);
-					t_length = sprintf(
-						t_utf8String, ":%X:%X:%X:%X:%X:%X:%X:%X",
+					t_length = snprintf(
+						t_utf8String, 46, ":%X:%X:%X:%X:%X:%X:%X:%X",
 						t_generalName->d.iPAddress->data[0] << 8
 							| t_generalName->d.iPAddress->data[1],
 						t_generalName->d.iPAddress->data[2] << 8
