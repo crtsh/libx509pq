@@ -6,6 +6,13 @@ REGRESS = basic
 REGRESS_OPTS = --inputdir=test --outputdir=test
 PG_CPPFLAGS = -Wno-declaration-after-statement
 PG_CONFIG = pg_config
+
+ifdef OPENSSL_HOME
+PG_CPPFLAGS += -I$(OPENSSL_HOME)/include
+SHLIB_LINK = -L$(OPENSSL_HOME)/lib -Wl,-rpath,$(OPENSSL_HOME)/lib -lcrypto
+else
+SHLIB_LINK = -lcrypto
+endif
+
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
-SHLIB_LINK = -lcrypto
