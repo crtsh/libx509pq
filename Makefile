@@ -9,7 +9,8 @@ PG_CONFIG = pg_config
 
 ifdef OPENSSL_HOME
 PG_CPPFLAGS += -I$(OPENSSL_HOME)/include
-SHLIB_LINK = -L$(OPENSSL_HOME)/lib -Wl,-rpath,$(OPENSSL_HOME)/lib -lcrypto
+OPENSSL_LIBDIR := $(firstword $(wildcard $(OPENSSL_HOME)/lib64 $(OPENSSL_HOME)/lib))
+SHLIB_LINK = -L$(OPENSSL_LIBDIR) -Wl,-rpath,$(OPENSSL_LIBDIR) -lcrypto
 else
 SHLIB_LINK = -lcrypto
 endif
