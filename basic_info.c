@@ -37,7 +37,7 @@ enum {
 /* Render an X509_NAME with the same flags used by x509_issuerName /
  * x509_subjectName when called with default arguments. */
 static void fill_name_rfc2253(
-	Datum* values, bool* nulls, int idx, X509_NAME* name, BIO* bio
+	Datum* values, bool* nulls, int idx, const X509_NAME* name, BIO* bio
 )
 {
 	char* s;
@@ -80,10 +80,10 @@ static void fill_subject_name(
 /* First commonName attribute in the subject, decoded as UTF-8. */
 static void fill_common_name(Datum* values, bool* nulls, X509* x509)
 {
-	X509_NAME* t_name = X509_get_subject_name(x509);
+	const X509_NAME* t_name = X509_get_subject_name(x509);
 	int t_idx = X509_NAME_get_index_by_NID(t_name, NID_commonName, -1);
-	X509_NAME_ENTRY* t_ne;
-	ASN1_STRING* t_as;
+	const X509_NAME_ENTRY* t_ne;
+	const ASN1_STRING* t_as;
 	unsigned char* t_utf8 = NULL;
 	int t_len;
 
