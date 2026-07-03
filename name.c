@@ -88,7 +88,7 @@ PG_FN(x509_subjectname)
 PG_FN(x509_name)
 {
 	X509* t_x509 = NULL;
-	X509_NAME* t_x509Name = NULL;
+	const X509_NAME* t_x509Name = NULL;
 	bytea* t_derName = NULL;
 	unsigned char* t_pointer2 = NULL;
 	int t_derName_size;
@@ -175,8 +175,8 @@ PG_FN(x509_name_print)
 PG_FN(x509_commonname)
 {
 	X509* t_x509 = NULL;
-	X509_NAME_ENTRY* t_nameEntry;
-	ASN1_STRING* t_asn1String;
+	const X509_NAME_ENTRY* t_nameEntry;
+	const ASN1_STRING* t_asn1String;
 	text* t_text = NULL;
 	unsigned char* t_utf8String = NULL;
 	int t_lastPos = -1;
@@ -215,7 +215,7 @@ PG_FN(x509_commonname)
 
 typedef struct tX509NameCtx_st{
 	X509* m_x509;
-	X509_NAME* m_name;
+	const X509_NAME* m_name;
 	int m_index;
 	int m_nid;
 } tX509NameCtx;
@@ -273,10 +273,10 @@ PG_FN(x509_nameattributes)
 	if ((t_x509NameCtx->m_nid != NID_undef) && (t_x509NameCtx->m_name)) {
 		while (t_x509NameCtx->m_index < X509_NAME_entry_count(
 						t_x509NameCtx->m_name)) {
-			X509_NAME_ENTRY* t_nameEntry = X509_NAME_get_entry(
+			const X509_NAME_ENTRY* t_nameEntry = X509_NAME_get_entry(
 				t_x509NameCtx->m_name, t_x509NameCtx->m_index
 			);
-			ASN1_STRING* t_asn1String;
+			const ASN1_STRING* t_asn1String;
 			int t_thisNID = OBJ_obj2nid(
 				X509_NAME_ENTRY_get_object(t_nameEntry)
 			);
@@ -334,7 +334,7 @@ PG_FN(x509_nameattributes)
 
 typedef struct tNameAttributesRawCtx_st{
 	X509* m_x509;
-	X509_NAME* m_name;
+	const X509_NAME* m_name;
 	int m_index;
 	bool* m_nulls;
 } tNameAttributesRawCtx;
@@ -386,7 +386,7 @@ PG_FN(x509_nameattributes_raw)
 	if (t_nameAttributesRawCtx->m_name) {
 		while (t_nameAttributesRawCtx->m_index < X509_NAME_entry_count(
 					t_nameAttributesRawCtx->m_name)) {
-			X509_NAME_ENTRY* t_nameEntry = X509_NAME_get_entry(
+			const X509_NAME_ENTRY* t_nameEntry = X509_NAME_get_entry(
 				t_nameAttributesRawCtx->m_name,
 				t_nameAttributesRawCtx->m_index
 			);
@@ -396,7 +396,7 @@ PG_FN(x509_nameattributes_raw)
 			/* Increment the counter while we can */
 			t_nameAttributesRawCtx->m_index++;
 
-			ASN1_STRING* t_asn1String = X509_NAME_ENTRY_get_data(t_nameEntry);
+			const ASN1_STRING* t_asn1String = X509_NAME_ENTRY_get_data(t_nameEntry);
 			int t_length = ASN1_STRING_to_UTF8(
 				(unsigned char**)&t_utf8String, t_asn1String
 			);
@@ -445,8 +445,8 @@ PG_FN(x509_nameattributes_raw)
 PG_FN(x509_anynameswithnuls)
 {
 	X509* t_x509 = NULL;
-	X509_NAME* t_name;
-	X509_NAME_ENTRY* t_nameEntry;
+	const X509_NAME* t_name;
+	const X509_NAME_ENTRY* t_nameEntry;
 	STACK_OF(GENERAL_NAME)* t_genNames;
 	const GENERAL_NAME* t_generalName;
 	int l_indexNo;
