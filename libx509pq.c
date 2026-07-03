@@ -173,8 +173,8 @@ static int ASN1_GENERALIZEDTIME_parse(
 	char *t_data;
 	int i;
 
-	i = v_asn1GeneralizedTime->length;
-	t_data = (char*)v_asn1GeneralizedTime->data;
+	i = ASN1_STRING_length(v_asn1GeneralizedTime);
+	t_data = (char*)ASN1_STRING_get0_data(v_asn1GeneralizedTime);
 
 	if (i < 12)
 		goto label_error;
@@ -231,8 +231,8 @@ static int ASN1_UTCTIME_parse(
 	char* t_data;
 	int i;
 
-	i = v_asn1UTCTime->length;
-	t_data = (char*)v_asn1UTCTime->data;
+	i = ASN1_STRING_length(v_asn1UTCTime);
+	t_data = (char*)ASN1_STRING_get0_data(v_asn1UTCTime);
 
 	if (i < 10)
 		goto label_error;
@@ -279,9 +279,9 @@ int ASN1_TIME_parse(
 	struct tm* const v_time
 )
 {
-	if (v_asn1Time->type == V_ASN1_UTCTIME)
+	if (ASN1_STRING_type(v_asn1Time) == V_ASN1_UTCTIME)
 		return ASN1_UTCTIME_parse(v_asn1Time, v_time);
-	else if (v_asn1Time->type == V_ASN1_GENERALIZEDTIME)
+	else if (ASN1_STRING_type(v_asn1Time) == V_ASN1_GENERALIZEDTIME)
 		return ASN1_GENERALIZEDTIME_parse(v_asn1Time, v_time);
 	return 0;
 }
