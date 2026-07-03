@@ -392,7 +392,7 @@ PG_FN(x509_canissuecerts)
 	BASIC_CONSTRAINTS_OLD* t_bCold = NULL;
 	ASN1_BIT_STRING* t_keyUsage;
 	SIGNATURE_BIT_STRING* t_signature;
-	ASN1_OCTET_STRING* t_oldBasicConstraints;
+	const ASN1_OCTET_STRING* t_oldBasicConstraints;
 	const unsigned char* t_pointer = NULL;
 	unsigned long t_keyUsageBits;
 	unsigned long t_subjTypeBits;
@@ -431,18 +431,18 @@ PG_FN(x509_canissuecerts)
 			t_oldBasicConstraints = X509_EXTENSION_get_data(
 				X509_get_ext(t_x509, t_pos)
 			);
-			t_pointer = t_oldBasicConstraints->data;
+			t_pointer = ASN1_STRING_get0_data(t_oldBasicConstraints);
 			t_bCold = (BASIC_CONSTRAINTS_OLD*)ASN1_item_d2i(
-				NULL, &t_pointer, t_oldBasicConstraints->length,
+				NULL, &t_pointer, ASN1_STRING_length(t_oldBasicConstraints),
 				ASN1_ITEM_ptr(v3_bcOld.it)
 			);
 			if (!t_bCold)
 				goto label_done;
-			else if (t_bCold->subjtype->length > 0) {
-				t_subjTypeBits = t_bCold->subjtype->data[0];
-				if (t_bCold->subjtype->length > 1)
-					t_subjTypeBits |= t_bCold->subjtype->
-								data[1] << 8;
+			else if (ASN1_STRING_length(t_bCold->subjtype) > 0) {
+				t_subjTypeBits = ASN1_STRING_get0_data(t_bCold->subjtype)[0];
+				if (ASN1_STRING_length(t_bCold->subjtype) > 1)
+					t_subjTypeBits |= ASN1_STRING_get0_data(
+						t_bCold->subjtype)[1] << 8;
 			}
 			else
 				t_subjTypeBits = 0;
@@ -461,8 +461,9 @@ PG_FN(x509_canissuecerts)
 		  Constraints extensions, yet old CryptoAPI versions treat is as
 		  a valid issuer nonetheless */
 		X509_GET_SIGNATURE(&t_signature, t_x509);
-		if (t_signature->length == 256)
-			if (!memcmp(g_rootSGCAuthority_sig, t_signature->data,
+		if (ASN1_STRING_length(t_signature) == 256)
+			if (!memcmp(g_rootSGCAuthority_sig,
+					ASN1_STRING_get0_data(t_signature),
 					256)) {
 				t_bResult = true;
 				goto label_checkKeyUsage;
@@ -477,11 +478,11 @@ PG_FN(x509_canissuecerts)
 			t_x509, NID_key_usage, NULL, NULL
 		);
 		if (t_keyUsage) {
-			if (t_keyUsage->length > 0) {
-				t_keyUsageBits = t_keyUsage->data[0];
-				if (t_keyUsage->length > 1)
+			if (ASN1_STRING_length(t_keyUsage) > 0) {
+				t_keyUsageBits = ASN1_STRING_get0_data(t_keyUsage)[0];
+				if (ASN1_STRING_length(t_keyUsage) > 1)
 					t_keyUsageBits |=
-						t_keyUsage->data[1] << 8;
+						ASN1_STRING_get0_data(t_keyUsage)[1] << 8;
 			}
 			else
 				t_keyUsageBits = 0;
@@ -508,7 +509,7 @@ PG_FN(x509_getpathlenconstraint)
 	BASIC_CONSTRAINTS* t_basicConstraints;
 	BASIC_CONSTRAINTS_OLD* t_bCold = NULL;
 	SIGNATURE_BIT_STRING* t_signature;
-	ASN1_OCTET_STRING* t_oldBasicConstraints;
+	const ASN1_OCTET_STRING* t_oldBasicConstraints;
 	const unsigned char* t_pointer = NULL;
 	unsigned long t_subjTypeBits;
 	int t_pos = -1;
@@ -548,18 +549,18 @@ PG_FN(x509_getpathlenconstraint)
 			t_oldBasicConstraints = X509_EXTENSION_get_data(
 				X509_get_ext(t_x509, t_pos)
 			);
-			t_pointer = t_oldBasicConstraints->data;
+			t_pointer = ASN1_STRING_get0_data(t_oldBasicConstraints);
 			t_bCold = (BASIC_CONSTRAINTS_OLD*)ASN1_item_d2i(
-				NULL, &t_pointer, t_oldBasicConstraints->length,
+				NULL, &t_pointer, ASN1_STRING_length(t_oldBasicConstraints),
 				ASN1_ITEM_ptr(v3_bcOld.it)
 			);
 			if (!t_bCold)
 				goto label_done;
-			else if (t_bCold->subjtype->length > 0) {
-				t_subjTypeBits = t_bCold->subjtype->data[0];
-				if (t_bCold->subjtype->length > 1)
-					t_subjTypeBits |= t_bCold->
-						subjtype->data[1] << 8;
+			else if (ASN1_STRING_length(t_bCold->subjtype) > 0) {
+				t_subjTypeBits = ASN1_STRING_get0_data(t_bCold->subjtype)[0];
+				if (ASN1_STRING_length(t_bCold->subjtype) > 1)
+					t_subjTypeBits |= ASN1_STRING_get0_data(
+						t_bCold->subjtype)[1] << 8;
 			}
 			else
 				t_subjTypeBits = 0;
@@ -583,8 +584,9 @@ PG_FN(x509_getpathlenconstraint)
 		  Constraints extensions, yet old CryptoAPI versions treat is as
 		  a valid issuer nonetheless */
 		X509_GET_SIGNATURE(&t_signature, t_x509);
-		if (t_signature->length == 256)
-			if (!memcmp(g_rootSGCAuthority_sig, t_signature->data,
+		if (ASN1_STRING_length(t_signature) == 256)
+			if (!memcmp(g_rootSGCAuthority_sig,
+					ASN1_STRING_get0_data(t_signature),
 					256)) {
 				t_iResult = -999;
 				goto label_done;
@@ -731,40 +733,38 @@ PG_FN(x509_altnames)
 			}
 			/* OCTET STRING types */
 			else if ((t_generalName->type == GEN_IPADD)
-					&& (t_generalName->d.iPAddress->length
+					&& (ASN1_STRING_length(
+						t_generalName->d.iPAddress)
 								== 4)) {
 				/* IPv4 */
+				const unsigned char *t_ipData
+					= ASN1_STRING_get0_data(
+						t_generalName->d.iPAddress);
 				t_utf8String = OPENSSL_malloc(16);
 				snprintf(t_utf8String, 16, "%d.%d.%d.%d",
-					t_generalName->d.iPAddress->data[0],
-					t_generalName->d.iPAddress->data[1],
-					t_generalName->d.iPAddress->data[2],
-					t_generalName->d.iPAddress->data[3]
+					t_ipData[0], t_ipData[1],
+					t_ipData[2], t_ipData[3]
 				);
 			}
 			else if ((t_generalName->type == GEN_IPADD)
-					&& (t_generalName->d.iPAddress->length
+					&& (ASN1_STRING_length(
+						t_generalName->d.iPAddress)
 								== 16)) {
 				/* IPv6 */
+				const unsigned char *t_ipData
+					= ASN1_STRING_get0_data(
+						t_generalName->d.iPAddress);
 				t_utf8String = OPENSSL_malloc(46);
 				snprintf(t_utf8String, 46,
 					":%X:%X:%X:%X:%X:%X:%X:%X",
-					t_generalName->d.iPAddress->data[0] << 8
-						| t_generalName->d.iPAddress->data[1],
-					t_generalName->d.iPAddress->data[2] << 8
-						| t_generalName->d.iPAddress->data[3],
-					t_generalName->d.iPAddress->data[4] << 8
-						| t_generalName->d.iPAddress->data[5],
-					t_generalName->d.iPAddress->data[6] << 8
-						| t_generalName->d.iPAddress->data[7],
-					t_generalName->d.iPAddress->data[8] << 8
-						| t_generalName->d.iPAddress->data[9],
-					t_generalName->d.iPAddress->data[10] << 8
-						| t_generalName->d.iPAddress->data[11],
-					t_generalName->d.iPAddress->data[12] << 8
-						| t_generalName->d.iPAddress->data[13],
-					t_generalName->d.iPAddress->data[14] << 8
-						| t_generalName->d.iPAddress->data[15]
+					t_ipData[0] << 8 | t_ipData[1],
+					t_ipData[2] << 8 | t_ipData[3],
+					t_ipData[4] << 8 | t_ipData[5],
+					t_ipData[6] << 8 | t_ipData[7],
+					t_ipData[8] << 8 | t_ipData[9],
+					t_ipData[10] << 8 | t_ipData[11],
+					t_ipData[12] << 8 | t_ipData[13],
+					t_ipData[14] << 8 | t_ipData[15]
 				);
 			}
 
@@ -884,38 +884,33 @@ PG_FN(x509_altnames_raw)
 				);
 			/* OCTET STRING types */
 			else if (t_generalName->type == GEN_IPADD) {
-				if (t_generalName->d.iPAddress->length == 4) {
+				const unsigned char *t_ipData
+					= ASN1_STRING_get0_data(
+						t_generalName->d.iPAddress);
+				int t_ipLen = ASN1_STRING_length(
+						t_generalName->d.iPAddress);
+				if (t_ipLen == 4) {
 					/* IPv4 */
 					t_utf8String = OPENSSL_malloc(16);
 					t_length = snprintf(
 						t_utf8String, 16, "%d.%d.%d.%d",
-						t_generalName->d.iPAddress->data[0],
-						t_generalName->d.iPAddress->data[1],
-						t_generalName->d.iPAddress->data[2],
-						t_generalName->d.iPAddress->data[3]
+						t_ipData[0], t_ipData[1],
+						t_ipData[2], t_ipData[3]
 					);
 				}
-				else if (t_generalName->d.iPAddress->length == 16) {
+				else if (t_ipLen == 16) {
 					/* IPv6 */
 					t_utf8String = OPENSSL_malloc(46);
 					t_length = snprintf(
 						t_utf8String, 46, ":%X:%X:%X:%X:%X:%X:%X:%X",
-						t_generalName->d.iPAddress->data[0] << 8
-							| t_generalName->d.iPAddress->data[1],
-						t_generalName->d.iPAddress->data[2] << 8
-							| t_generalName->d.iPAddress->data[3],
-						t_generalName->d.iPAddress->data[4] << 8
-							| t_generalName->d.iPAddress->data[5],
-						t_generalName->d.iPAddress->data[6] << 8
-							| t_generalName->d.iPAddress->data[7],
-						t_generalName->d.iPAddress->data[8] << 8
-							| t_generalName->d.iPAddress->data[9],
-						t_generalName->d.iPAddress->data[10] << 8
-							| t_generalName->d.iPAddress->data[11],
-						t_generalName->d.iPAddress->data[12] << 8
-							| t_generalName->d.iPAddress->data[13],
-						t_generalName->d.iPAddress->data[14] << 8
-							| t_generalName->d.iPAddress->data[15]
+						t_ipData[0] << 8 | t_ipData[1],
+						t_ipData[2] << 8 | t_ipData[3],
+						t_ipData[4] << 8 | t_ipData[5],
+						t_ipData[6] << 8 | t_ipData[7],
+						t_ipData[8] << 8 | t_ipData[9],
+						t_ipData[10] << 8 | t_ipData[11],
+						t_ipData[12] << 8 | t_ipData[13],
+						t_ipData[14] << 8 | t_ipData[15]
 					);
 				}
 				else {
@@ -1181,7 +1176,7 @@ typedef struct tExtensionsCtx_st{
 PG_FN(x509_extensions)
 {
 	X509_EXTENSION* t_extension;
-	ASN1_OBJECT* t_extensionOID;
+	const ASN1_OBJECT* t_extensionOID;
 	tExtensionsCtx* t_extensionsCtx;
 	FuncCallContext* t_funcCtx;
 
