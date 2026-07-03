@@ -24,7 +24,11 @@
 #include "openssl/asn1.h"
 #include "openssl/asn1t.h"
 #include "openssl/bn.h"
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
 #include "openssl/engine.h"
+#else
+#include "openssl/provider.h"
+#endif
 #include "openssl/err.h"
 #include "openssl/evp.h"
 #include "openssl/objects.h"

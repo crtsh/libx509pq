@@ -17,7 +17,7 @@
  *
  *
  * This translation unit holds the module lifecycle (_PG_init/_PG_fini),
- * shared globals (g_error, g_gostEngine), the algorithm-name lookup
+ * shared globals (g_error), the algorithm-name lookup
  * tables, the ASN.1 time parsers, the trivial per-field accessors that
  * don't fit elsewhere (notBefore/notAfter/serialNumber/print), plus
  * URL encode/decode and the OpenSSL-version helper.
@@ -83,6 +83,7 @@ const char* pkey_alg_name(int nid)
   certificate cannot be parsed.  Externed via libx509pq.h. */
 char g_error[] = "ERROR!";
 
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
 /* Process-global state initialised once in _PG_init() and torn down in
   _PG_fini(). PostgreSQL spawns a separate OS process per backend and a
   backend is single-threaded, so no locking is required around these
@@ -91,6 +92,7 @@ char g_error[] = "ERROR!";
   (re)initialisation from SQL-callable functions; _PG_init() is the sole
   initialisation point. */
 static ENGINE* g_gostEngine = NULL;
+#endif
 
 
 /******************************************************************************
@@ -98,6 +100,7 @@ static ENGINE* g_gostEngine = NULL;
  ******************************************************************************/
 void _PG_init(void)
 {
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
 	/* We need MD2 to verify old MD2/RSA certificate signatures, but
 	  OpenSSL_add_all_digests() no longer enables MD2 by default */
 	OpenSSL_add_all_digests();
@@ -106,6 +109,7 @@ void _PG_init(void)
 #endif
 
 	ERR_load_crypto_strings();
+#endif
 
 	/* Define the OID for the draft Basic Constraints extension. The
 	  v3_bcOld struct itself lives in extensions.c. */
@@ -114,6 +118,7 @@ void _PG_init(void)
 		"draft-ietf-pkix-ipki-part1-01 Basic Constraints"
 	);
 
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
 	/* Load all built-in engines */
 	ENGINE_load_builtin_engines();
 
@@ -121,6 +126,12 @@ void _PG_init(void)
 	g_gostEngine = ENGINE_by_id("gost");
 	if (g_gostEngine && ENGINE_init(g_gostEngine))
 		ENGINE_set_default(g_gostEngine, ENGINE_METHOD_ALL);
+#else
+	/* OpenSSL 3.0+ replaced ENGINEs with the provider API.
+	   GOST support requires a GOST provider to be installed
+	   and configured (e.g. via openssl.cnf). */
+	OSSL_PROVIDER_load(NULL, "default");
+#endif
 
 	rocacheck_init();
 }
@@ -141,6 +152,7 @@ void _PG_init(void)
 extern void _PG_fini(void);
 void _PG_fini(void)
 {
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
 	if (g_gostEngine) {
 		ENGINE_finish(g_gostEngine);
 		ENGINE_free(g_gostEngine);
@@ -149,6 +161,7 @@ void _PG_fini(void)
 	EVP_cleanup();
 	OBJ_cleanup();
 	ERR_free_strings();
+#endif
 
 	rocacheck_cleanup();
 }
