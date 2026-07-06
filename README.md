@@ -11,7 +11,7 @@ public Certificate Transparency log search.
 ## Requirements
 
 - PostgreSQL 12 or later (developed and tested against PG 18)
-- OpenSSL 1.1.1 or later (3.x supported)
+- OpenSSL 1.1.1 or later (3.x and 4.x supported)
 - A C toolchain plus the PostgreSQL server headers
   (`postgresql-server-dev-<n>` on Debian/Ubuntu, `postgresql<n>-devel` on
   RHEL/Fedora)
@@ -31,7 +31,38 @@ make PG_CONFIG=/path/to/pg_config
 sudo make install PG_CONFIG=/path/to/pg_config
 ```
 
-Then, in a database:
+### Using a non-system OpenSSL
+
+To build against an OpenSSL installed outside the default system paths (e.g.
+`/usr/local/openssl-4.0.1`), set `OPENSSL_HOME`:
+
+```sh
+make OPENSSL_HOME=/usr/local/openssl-4.0.1
+sudo make install OPENSSL_HOME=/usr/local/openssl-4.0.1
+```
+
+The Makefile will look for headers in `$OPENSSL_HOME/include` and for
+`libcrypto.so` in `$OPENSSL_HOME/lib64` (falling back to
+`$OPENSSL_HOME/lib`). An `RPATH` is embedded in the resulting `.so` so the
+correct `libcrypto` is found at runtime without requiring `LD_LIBRARY_PATH`
+or changes to the system linker cache.
+
+Both variables can be combined:
+
+```sh
+make PG_CONFIG=/path/to/pg_config OPENSSL_HOME=/usr/local/openssl-4.0.1
+```
+
+You can verify the linked library after building:
+
+```sh
+objdump -p libx509pq.so | grep NEEDED   # should show libcrypto.so.4
+ldd libx509pq.so                        # should resolve to OPENSSL_HOME
+```
+
+## Loading the extension
+
+In a database:
 
 ```sql
 CREATE EXTENSION libx509pq;
