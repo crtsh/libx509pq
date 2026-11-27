@@ -604,6 +604,10 @@ PG_FN(urldecode)
  ******************************************************************************/
 PG_FN(x509pq_opensslversion)
 {
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	const char* t_version = OpenSSL_version(OPENSSL_VERSION);
+#else
 	const char* t_version = SSLeay_version(SSLEAY_VERSION);
+#endif
 	PG_RETURN_TEXT_P(text_from_cstring_len(t_version, strlen(t_version)));
 }
