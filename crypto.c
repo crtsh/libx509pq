@@ -2,6 +2,9 @@
  * See libx509pq.c for the full copyright notice. Licensed under GPLv3+. */
 
 #include "libx509pq.h"
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/core_names.h>
+#endif
 
 
 /* ROCA (CVE-2017-15361) fingerprint primes and discriminator bitmasks.
@@ -227,6 +230,24 @@ label_error:
 }
 
 
+/* Return an owned copy of the modulus for either OpenSSL key API. */
+static BIGNUM*
+get_rsa_modulus(EVP_PKEY* key)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+	BIGNUM* modulus = NULL;
+
+	if (EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_RSA_N, &modulus) != 1)
+		return NULL;
+	return modulus;
+#else
+	const BIGNUM* modulus = NULL;
+
+	RSA_get0_key(EVP_PKEY_get0_RSA(key), &modulus, NULL, NULL);
+	return modulus ? BN_dup(modulus) : NULL;
+#endif
+}
+
 /******************************************************************************
  * x509_rsamodulus()                                                          *
  ******************************************************************************/
@@ -234,7 +255,7 @@ PG_FN(x509_rsamodulus)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
-	const BIGNUM* t_modulus = NULL;
+	BIGNUM* t_modulus = NULL;
 	bytea* t_derModulus = NULL;
 	int t_derModulus_size;
 
@@ -246,19 +267,23 @@ PG_FN(x509_rsamodulus)
 	if (!t_publicKey || (EVP_PKEY_id(t_publicKey) != EVP_PKEY_RSA))
 		goto label_error;
 
-	RSA_get0_key(EVP_PKEY_get0_RSA(t_publicKey), &t_modulus, NULL, NULL);
+	t_modulus = get_rsa_modulus(t_publicKey);
+	if (!t_modulus)
+		goto label_error;
 	t_derModulus_size = BN_num_bytes(t_modulus);
 	t_derModulus = palloc(VARHDRSZ + t_derModulus_size);
 	SET_VARSIZE(t_derModulus, VARHDRSZ + t_derModulus_size);
 	if (BN_bn2bin(t_modulus, (unsigned char*)VARDATA(t_derModulus)) != t_derModulus_size)
 		goto label_error;
 
+	BN_free(t_modulus);
 	EVP_PKEY_free(t_publicKey);
 	X509_free(t_x509);
 
 	PG_RETURN_BYTEA_P(t_derModulus);
 
 label_error:
+	BN_free(t_modulus);
 	if (t_publicKey)
 		EVP_PKEY_free(t_publicKey);
 	if (t_x509)
@@ -409,7 +434,7 @@ PG_FN(x509_hasrocafingerprint)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
-	const BIGNUM* t_modulus = NULL;
+	BIGNUM* t_modulus = NULL;
 	BN_CTX* t_ctx = BN_CTX_new();
 	BN_CTX_start(t_ctx);
 	BIGNUM* t_prime = BN_CTX_get(t_ctx);
@@ -427,7 +452,7 @@ PG_FN(x509_hasrocafingerprint)
 				|| (EVP_PKEY_id(t_publicKey) == EVP_PKEY_RSA2)))
 		goto label_return;
 
-	RSA_get0_key(EVP_PKEY_get0_RSA(t_publicKey), &t_modulus, NULL, NULL);
+	t_modulus = get_rsa_modulus(t_publicKey);
 	if (!t_modulus)
 		goto label_return;
 
@@ -446,6 +471,7 @@ PG_FN(x509_hasrocafingerprint)
 	t_bResult = true;
 
 label_return:
+	BN_free(t_modulus);
 	BN_CTX_end(t_ctx);
 	BN_CTX_free(t_ctx);
 
@@ -571,7 +597,7 @@ PG_FN(x509_hascloseprimes)
 {
 	X509* t_x509 = NULL;
 	EVP_PKEY* t_publicKey = NULL;
-	const BIGNUM* t_modulus = NULL;
+	BIGNUM* t_modulus = NULL;
 	BN_CTX* t_ctx = BN_CTX_new();
 	BN_CTX_start(t_ctx);
 	BIGNUM* a = BN_CTX_get(t_ctx);
@@ -589,7 +615,7 @@ PG_FN(x509_hascloseprimes)
 				|| (EVP_PKEY_id(t_publicKey) == EVP_PKEY_RSA2)))
 		goto label_return;
 
-	RSA_get0_key(EVP_PKEY_get0_RSA(t_publicKey), &t_modulus, NULL, NULL);
+	t_modulus = get_rsa_modulus(t_publicKey);
 	if (!t_modulus)
 		goto label_return;
 
@@ -610,6 +636,7 @@ PG_FN(x509_hascloseprimes)
 	t_bResultIsNULL = false;				// Not factored.
 
 label_return:
+	BN_free(t_modulus);
 	BN_CTX_end(t_ctx);
 	BN_CTX_free(t_ctx);
 
